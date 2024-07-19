@@ -1,0 +1,8 @@
+/.DS_Store
+/.env
+/.graphrag-venv
+/.vscode
+/__pycache__
+/pdf_articles
+/poerschmann-sem-search-c6b8a12d7a03.json
+/sample_txt.py
