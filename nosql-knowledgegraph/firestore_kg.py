@@ -46,7 +46,46 @@ class FirestoreKG(NoSQLKnowledgeGraph):
 
     def add_node(self, node_uid: str, node_data: NodeData) -> None:
         """Adds an node to the knowledge graph."""
-        pass
+        doc_ref = self.db.collection(self.node_coll_id).document(node_uid)
+
+        # Check if a node with the same node_uid already exists
+        if doc_ref.get().exists:
+            raise ValueError(f"Error: Node with node_uid '{node_uid}' already exists.")
+
+        # Convert NodeData to a dictionary for Firestore storage
+        try:
+            node_data_dict = node_data.__dict__
+        except TypeError as e:
+            raise ValueError(
+                f"Error: Provided node_data for node_uid '{node_uid}' cannot be converted to a dictionary. Details: {e}"
+            ) from e
+
+        # Set the document ID to match the node_uid
+        try:
+            doc_ref.set(node_data_dict)
+        except ValueError as e:
+            raise ValueError(
+                f"Error: Could not add node with node_uid '{node_uid}' to Firestore. Details: {e}"
+            ) from e
+        
+        # Update references in other nodes
+        for other_node_uid in node_data.edges_to:
+            try:
+                other_node_data = self.get_node(other_node_uid)
+                other_node_data.edges_from = tuple(set(other_node_data.edges_from) | {node_uid})  # Add to edges_from
+                self.update_node(other_node_uid, other_node_data)
+            except KeyError:
+                # If the other node doesn't exist, just continue
+                continue
+
+        for other_node_uid in node_data.edges_from:
+            try:
+                other_node_data = self.get_node(other_node_uid)
+                other_node_data.edges_to = tuple(set(other_node_data.edges_to) | {node_uid})  # Add to edges_to
+                self.update_node(other_node_uid, other_node_data)
+            except KeyError:
+                # If the other node doesn't exist, just continue
+                continue
 
     def get_node(self, node_uid: str) -> NodeData:
         """Retrieves an node from the knowledge graph."""
@@ -64,15 +103,71 @@ class FirestoreKG(NoSQLKnowledgeGraph):
         else:
             raise KeyError(f"Error: No node found with node_uid: {node_uid}")
 
-    
     def update_node(self, node_uid: str, node_data: NodeData) -> None:
         """Updates an existing node in the knowledge graph."""
-        pass
+        doc_ref = self.db.collection(self.node_coll_id).document(node_uid)
+
+        # Check if the node exists
+        if not doc_ref.get().exists:
+            raise KeyError(f"Error: Node with node_uid '{node_uid}' does not exist.")
+
+        # Convert NodeData to a dictionary for Firestore storage
+        try:
+            node_data_dict = node_data.__dict__
+        except TypeError as e:
+            raise ValueError(
+                f"Error: Provided node_data for node_uid '{node_uid}' cannot be converted to a dictionary. Details: {e}"
+            ) from e
+
+        # Update the document
+        try:
+            doc_ref.update(node_data_dict)
+        except ValueError as e:
+            raise ValueError(
+                f"Error: Could not update node with node_uid '{node_uid}' in Firestore. Details: {e}"
+            ) from e
     
     def remove_node(self, node_uid: str) -> None:
-        """Removes an node from the knowledge graph."""
-        pass
-    
+        """
+        Removes an node from the knowledge graph.
+        Also removed all edges to and from the node to be removed from all other nodes.
+        """
+        doc_ref = self.db.collection(self.node_coll_id).document(node_uid)
+
+        # Check if the node exists
+        if not doc_ref.get().exists:
+            raise KeyError(f"Error: Node with node_uid '{node_uid}' does not exist.")
+
+        # 1. Get the node data to find its connections
+        node_data = self.get_node(node_uid)
+
+        # 2. Remove connections TO this node from other nodes
+        for other_node_uid in node_data.edges_from:
+            try:
+                other_node_data = self.get_node(other_node_uid)
+                other_node_data.edges_to = tuple(
+                    edge for edge in other_node_data.edges_to if edge != node_uid
+                )
+                self.update_node(other_node_uid, other_node_data)
+            except KeyError:
+                # If the other node doesn't exist, just continue
+                continue
+
+        # 3. Remove connections FROM this node to other nodes
+        for other_node_uid in node_data.edges_to:
+            try:
+                other_node_data = self.get_node(other_node_uid)
+                other_node_data.edges_from = tuple(
+                    edge for edge in other_node_data.edges_from if edge != node_uid
+                )
+                self.update_node(other_node_uid, other_node_data)
+            except KeyError:
+                # If the other node doesn't exist, just continue
+                continue
+
+        # 4. Finally, remove the node itself
+        doc_ref.delete()
+
     def add_edge(self, source_uid: str, target_uid: str, edge_data: EdgeData) -> None:
         """Adds an edge (relationship) between two entities in the knowledge graph."""
         pass
@@ -120,6 +215,60 @@ if __name__ == "__main__":
         community_collection_id=community_coll_id
     )
 
+    # Test get_node method
     node_info = fskg.get_node(node_uid="test_node")
-    
+
+    # Test add_node method
+    test_node_data = NodeData(
+        node_uid="test_node_add",
+        node_title="Added Test Node",
+        node_type="Added Test Node Type",
+        node_description="This is a test node",
+        node_degree=0,
+        document_id="test_doc_id",
+        edges_to=("test_node",),
+        edges_from=(),
+        embedding=(0.1, 0.2, 0.3), 
+    )
+
+    try:
+        fskg.add_node(node_uid="test_node_add", node_data=test_node_data)
+        print("Test add_node: PASSED")
+    except Exception as e:
+        print(f"Test add_node: FAILED - {e}")
+
+    # Test update_node method
+    test_updated_node_data = NodeData(
+        node_uid="test_node_add",
+        node_title="Added Test Node",
+        node_type="Added Test Node Type",
+        node_description="This is the updated test node description",
+        node_degree=0,
+        document_id="test_doc_id",
+        edges_to=("test_node",),
+        edges_from=(),
+        embedding=(0.1, 0.2, 0.3), 
+    )
+
+    try:
+        fskg.update_node(node_uid="test_node_add", node_data=test_updated_node_data)
+        print("Test update_node: PASSED")
+    except Exception as e:
+        print(f"Test update_node: FAILED - {e}")
+
+    # Get both nodes to check updates
+    node_info = fskg.get_node(node_uid="test_node")
+    node_info = fskg.get_node(node_uid="test_node_add")
+
+    # Test remove_node method
+    try:
+        fskg.remove_node(node_uid="test_node_add")
+        print("Test remove_node: PASSED")
+    except Exception as e:
+        print(f"Test remove_node: FAILED - {e}")
+
+    # Get both nodes to deletion & corresponding edge update in remaining
+    node_info = fskg.get_node(node_uid="test_node")
+    node_info = fskg.get_node(node_uid="test_node_add")
+
     print("Hello World!")
