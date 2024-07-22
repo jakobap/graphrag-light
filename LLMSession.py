@@ -26,6 +26,8 @@ import sample_txt
 
 from typing import List, Optional
 
+from langfuse.decorators import observe
+
 
 class LLMSession:
     def __init__(self, system_message: str, model_name: str):
@@ -36,6 +38,7 @@ class LLMSession:
             self.model_name, system_instruction=[system_message])
         self.model_chat = self.model.start_chat()
 
+    @observe(as_type="generation")
     def generate(
         self,
         client_query_string: str,
@@ -54,7 +57,8 @@ class LLMSession:
             stream=False
         )
         return response.text  # type: ignore
-
+    
+    @observe(as_type="generation")
     def generate_chat(self,
                       client_query_string: str,
                       max_output_tokens: int = 8192,
