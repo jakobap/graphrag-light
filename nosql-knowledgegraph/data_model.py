@@ -11,14 +11,14 @@ class EdgeData:
 
 @dataclass
 class NodeData:
-    document_id: str # identifier for source knowlede base document for this entity
     node_uid: str
     node_title: str
     node_type: str
     node_description: str
     node_degree: int
+    document_id: str # identifier for source knowlede base document for this entity
     community_id: int | None = None # community id based on source document 
-    edges_to: Tuple[EdgeData, ...] = field(default_factory=tuple)
+    edges_to: Tuple[str, ...] = field(default_factory=tuple)
     edges_from: Tuple[str, ...] = field(default_factory=tuple)  # in case of directed graph
     embedding: Tuple[float, ...] = field(default_factory=tuple)  # text embedding representing node e.g. combination of title & description
 
