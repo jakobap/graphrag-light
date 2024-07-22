@@ -52,7 +52,18 @@ class FirestoreKG(NoSQLKnowledgeGraph):
         """Retrieves an node from the knowledge graph."""
         doc_ref = self.db.collection(self.node_coll_id).document(node_uid)
         doc_snapshot = doc_ref.get()
-        return doc_snapshot.to_dict()
+
+        if doc_snapshot.exists:
+            try:
+                node_data = NodeData(**doc_snapshot.to_dict())
+                return node_data
+            except TypeError as e:
+                raise ValueError(
+                    f"Error: Data fetched for node_uid '{node_uid}' does not match the NodeData format. Details: {e}"
+                ) from e
+        else:
+            raise KeyError(f"Error: No node found with node_uid: {node_uid}")
+
     
     def update_node(self, node_uid: str, node_data: NodeData) -> None:
         """Updates an existing node in the knowledge graph."""
@@ -109,6 +120,6 @@ if __name__ == "__main__":
         community_collection_id=community_coll_id
     )
 
-    print(fskg.get_node(node_uid="test_node"))
+    node_info = fskg.get_node(node_uid="test_node")
     
     print("Hello World!")
