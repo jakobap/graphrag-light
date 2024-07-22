@@ -1,8 +1,5 @@
-from dataclasses import dataclass
-from typing import List
-
-from networkx import edges
-
+from dataclasses import dataclass, field
+from typing import Tuple
 
 
 @dataclass
@@ -21,16 +18,16 @@ class NodeData:
     node_description: str
     node_degree: int
     community_id: int | None = None # community id based on source document 
-    edges_to: List[EdgeData] = []
-    edges_from: List[str] = [] # in case of directed graph
-    embedding: List[float] = [] # text embedding representing node e.g. combination of title & description
+    edges_to: Tuple[EdgeData, ...] = field(default_factory=tuple)
+    edges_from: Tuple[str, ...] = field(default_factory=tuple)  # in case of directed graph
+    embedding: Tuple[float, ...] = field(default_factory=tuple)  # text embedding representing node e.g. combination of title & description
 
 
 @dataclass
 class CommunityData:
     document_id: str # identifier for source knowlede base document for this entity
     community_uid: str # community identifier
-    community_nodes: List[str] # list of node_uid belonging to community
+    community_nodes: Tuple[str, ...] = field(default_factory=tuple) # list of node_uid belonging to community
     community_title: str | None = None # title of comm, None if not yet computed
     community_description: str | None = None # description of comm, None if not yet computed
-    community_embedding: List[float] = [] # text embedding representing community
+    community_embedding: Tuple[float, ...] = field(default_factory=tuple) # text embedding representing community
