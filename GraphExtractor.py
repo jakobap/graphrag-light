@@ -10,36 +10,10 @@ import networkx as nx
 import re
 import numbers
 import html
+import datetime
 from collections.abc import Mapping
 import matplotlib.pyplot as plt
-
-
-# SAMPLE_RESPONSE = """
-#         ("entity"<|>"Colipi"<|>"organization"<|>"Colipi is a Hamburg-based biotech company that transforms renewable carbon from organic by-products and carbon dioxide into microbial Climate Oil, an alternative to palm oil usable in various fields.")##
-#         ("entity"<|>"Make My Day"<|>"organization"<|>"Make My Day is an Israeli start-up that provides smart mobility solutions to help companies transition to all-green electric vehicles, including fleet management, route planning, and battery consumption prediction.")##
-#         ("entity"<|>"AraBat"<|>"organization"<|>"AraBat is an Italian start-up that retrieves metals from batteries using agri-food waste, promoting resource efficiency and the circular economy.")##
-#         ("entity"<|>"Hamburg Marketing"<|>"organization"<|>"Hamburg Marketing is an organization that presented the Future Hamburg Award during Plug and Play's Expo in the Factory Hammerbrooklyn.")##
-#         ("entity"<|>"Plug and Play"<|>"organization"<|>"Plug and Play is an organization with a network of over 60,000 start-ups and 500 companies, supporting the Future Hamburg Award and shaping Hamburg's innovation ecosystem.")##
-#         ("entity"<|>"Startup Unit Hamburg"<|>"organization"<|>"Startup Unit Hamburg is part of Hamburg Invest and supports start-ups by mediating contacts to investors and forging networks.")##
-#         ("entity"<|>"Hamburg Invest"<|>"organization"<|>"Hamburg Invest is a business development agency that initiated the Future Hamburg Award in 2018.")##
-#         ("entity"<|>"Future Hamburg Award"<|>"event"<|>"The Future Hamburg Award is a biannual event that honors forward-looking start-ups excelling in innovation, impact, and growth.")##
-#         ("entity"<|>"Plug and Play's Expo"<|>"event"<|>"Plug and Play's Expo is an event held in the Factory Hammerbrooklyn where the Future Hamburg Award was presented.")##
-#         ("entity"<|>"Sallar Faridi"<|>"person"<|>"Sallar Faridi is the Senior Director of Plug and Play, supporting the Future Hamburg Award and promoting Hamburg's innovation ecosystem.")##
-#         ("entity"<|>"Hamburg"<|>"geo"<|>"Hamburg is a city in Germany, hosting the Future Hamburg Award and fostering a thriving start-up ecosystem.")##
-#         ("entity"<|>"Silicon Valley, California"<|>"geo"<|>"Silicon Valley is a location in California, home to the Plug and Play Tech Center headquarters, where Colipi's prize includes a one-month accelerator program.")##
-#         ("relationship"<|>"Colipi"<|>"Future Hamburg Award"<|>"Colipi won the top Future Hamburg Award in 2023."<|>9)##
-#         ("relationship"<|>"Make My Day"<|>"Future Hamburg Award"<|>"Make My Day came second in the Future Hamburg Award in 2023."<|>8)##
-#         ("relationship"<|>"AraBat"<|>"Future Hamburg Award"<|>"AraBat came third in the Future Hamburg Award in 2023."<|>7)##
-#         ("relationship"<|>"Hamburg Marketing"<|>"Future Hamburg Award"<|>"Hamburg Marketing presented the Future Hamburg Award."<|>8)##
-#         ("relationship"<|>"Plug and Play"<|>"Future Hamburg Award"<|>"Plug and Play is the main partner of the Future Hamburg Award."<|>9)##
-#         ("relationship"<|>"Startup Unit Hamburg"<|>"Colipi"<|>"Startup Unit Hamburg invited Colipi to take part in its scheme."<|>7)##
-#         ("relationship"<|>"Startup Unit Hamburg"<|>"Make My Day"<|>"Startup Unit Hamburg invited Make My Day to take part in its scheme."<|>7)##
-#         ("relationship"<|>"Startup Unit Hamburg"<|>"AraBat"<|>"Startup Unit Hamburg invited AraBat to take part in its scheme."<|>7)##
-#         ("relationship"<|>"Colipi"<|>"Silicon Valley, California"<|>"Colipi's prize includes a one-month accelerator at the Plug and Play Tech Center headquarters in Silicon Valley."<|>8)##
-#         ("relationship"<|>"Hamburg Invest"<|>"Future Hamburg Award"<|>"Hamburg Invest initiated the Future Hamburg Award."<|>8)##
-#         ("relationship"<|>"Future Hamburg Award"<|>"Hamburg"<|>"The Future Hamburg Award is presented in Hamburg."<|>9)##
-#         ("relationship"<|>"Plug and Play's Expo"<|>"Hamburg"<|>"Plug and Play's Expo, where the Future Hamburg Award was presented, took place in Hamburg."<|>8)<|COMPLETE|>
-#         """
+from langfuse.decorators import observe, langfuse_context
 
 
 class GraphExtractor:
@@ -61,6 +35,7 @@ class GraphExtractor:
 
         self.ingestion = IngestionSession()
 
+    @observe()
     def __call__(self, text_input: str, max_extr_rounds:int=5) -> nx.Graph:
         input_prompt = self._construct_extractor_input(input_text=text_input)
 
@@ -69,14 +44,14 @@ class GraphExtractor:
 
         print("+++++ Init Graph Extraction +++++")
 
-        init_extr_result = self.llm.generate_chat(client_query_string=input_prompt)
+        init_extr_result = self.llm.generate_chat(client_query_string=input_prompt,temperature=0, top_p=0)
         print(f"Init result: {init_extr_result}")
 
         for round_i in range(max_extr_rounds):
 
             print(f"+++++ Contd. Graph Extraction round {round_i} +++++")
 
-            round_response = self.llm.generate_chat(client_query_string=prompts.CONTINUE_PROMPT)
+            round_response = self.llm.generate_chat(client_query_string=prompts.CONTINUE_PROMPT,temperature=0, top_p=0)
             init_extr_result += round_response or ""
 
             print(f"Round response: {round_response}")
@@ -84,11 +59,13 @@ class GraphExtractor:
             if round_i >= max_extr_rounds - 1:
                 break
 
-            completion_check = self.llm.generate_chat(client_query_string=prompts.LOOP_PROMPT)
+            completion_check = self.llm.generate_chat(client_query_string=prompts.LOOP_PROMPT, temperature=0, top_p=0)
 
-            if completion_check != "YES":
+            if "YES" not in completion_check:
                 print(f"+++++ Complete with completion check after round {round_i} +++++")
                 break
+
+        langfuse_context.flush()
 
         return self._process_results(results={0: init_extr_result})
 
@@ -221,7 +198,7 @@ class GraphExtractor:
         # https://stackoverflow.com/questions/4324790/removing-control-characters-from-a-string-in-python
         return re.sub(r"[\x00-\x1f\x7f-\x9f]", "", result)
 
-    def visualize_graph(self, graph: nx.Graph) -> None:
+    def visualize_graph(self, graph: nx.Graph, filename: str= f"graph_{datetime.datetime.now()}.png") -> None:
         """Visualizes the provided networkx graph using matplotlib.
 
         Args:
@@ -246,8 +223,7 @@ class GraphExtractor:
                 nodelist=nodes,
                 node_color=[color_map(i)],  # type: ignore
                 label=entity_type,
-                node_size=[10 + 50 * graph.degree(n)
-                           for n in nodes]  # type: ignore
+                node_size=[10 + 50 * graph.degree(n) for n in nodes] # type: ignore
             )
 
         # Draw edges with labels
@@ -268,7 +244,9 @@ class GraphExtractor:
         # Add a legend for node colors
         plt.legend(handles=[plt.Line2D([0], [0], marker='o', color='w', label=entity_type,
                    markersize=10, markerfacecolor=color_map(i)) for i, entity_type in enumerate(entity_types)])
-        plt.show()
+        
+        plt.savefig(filename)
+        # plt.show()
         return None
 
 
@@ -276,8 +254,12 @@ if __name__ == "__main__":
     ingestion = IngestionSession()
     extractor = GraphExtractor()
 
+    # document_string = ingestion(
+    #     new_file_name="./pdf_articles/Winners of Future Hamburg Award 2023 announced _ Hamburg News.pdf", ingest_local_file=True
+    # )
+
     document_string = ingestion(
-        new_file_name="./pdf_articles/Winners of Future Hamburg Award 2023 announced _ Hamburg News.pdf", ingest_local_file=True
+        new_file_name="./pdf_articles/Physicist Narges Mohammadi awarded Nobe... for human-rights work – Physics World.pdf", ingest_local_file=True
     )
 
     extracted_graph = extractor(text_input=document_string)
