@@ -1,3 +1,4 @@
+from re import A
 import networkx
 from data_model import NodeData, EdgeData, CommunityData
 
@@ -67,9 +68,15 @@ class NoSQLKnowledgeGraph(ABC):
         """
         pass
 
+    @abstractmethod
     def _generate_edge_uid(self, source_uid: str, target_uid: str) -> str:
         """Generates Edge uid for the network based on source and target nod uid"""
         return ""
+    
+    @abstractmethod
+    def visualize_graph(self, filename: str) -> None:
+        """Visualizes the provided networkx graph using matplotlib."""
+        pass
 
 
 if __name__ == "__main__":
