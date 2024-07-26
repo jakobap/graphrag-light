@@ -1,0 +1,478 @@
+from matplotlib.pylab import source
+from networkx import directed_combinatorial_laplacian_matrix
+from graph2nosql import NoSQLKnowledgeGraph
+from firestore_kg import FirestoreKG
+from data_model import NodeData, EdgeData, CommunityData
+
+import unittest
+from abc import ABC, abstractmethod
+from typing import List, Type
+from data_model import NodeData, EdgeData, CommunityData  # Assuming you have this module
+
+class NoSQLKnowledgeGraphTests(ABC):
+    """
+    Abstract base class to define test cases for NoSQLKnowledgeGraph implementations.
+
+    Concrete test classes for specific NoSQL databases should inherit from this class
+    and implement the required abstract methods.
+    """
+
+    @abstractmethod
+    def create_kg_instance(self) -> NoSQLKnowledgeGraph:
+        """Create and return an instance of the NoSQLKnowledgeGraph implementation."""
+        pass
+
+    def setUp(self):
+        """Set up for test methods."""
+        self.kg = self.create_kg_instance()
+        # Add any setup logic specific to your NoSQL database here
+
+    def test_add_and_remove_node(self):
+        # Add a node
+        node_data = NodeData(
+            node_uid="added_test_node_1",
+            node_title="Test Node 1",
+            node_type="Person",
+            node_description="This is a test node",
+            node_degree=0,
+            document_id="doc_1",
+            edges_to=[],
+            edges_from=[],
+            embedding=[0.1, 0.2, 0.3],
+        )
+        self.kg.add_node(node_uid="added_test_node_1", node_data=node_data)
+
+        # Retrieve the node and verify its data
+        retrieved_node_data = self.kg.get_node(node_uid="added_test_node_1")
+        print(retrieved_node_data)
+        self.assertEqual(retrieved_node_data, node_data)
+
+        # Remove the node
+        self.kg.remove_node(node_uid="added_test_node_1")
+
+        # Try to retrieve the node again (should raise KeyError)
+        with self.assertRaises(KeyError):
+            self.kg.get_node(node_uid="added_test_node_1")
+
+    def test_update_node(self):
+        # Add a node
+        node_data = NodeData(
+            node_uid="test_update_node_1",
+            node_title="Test Node 1",
+            node_type="Person",
+            node_description="This is a test node",
+            node_degree=0,
+            document_id="doc_1",
+            edges_to=[],
+            edges_from=[],
+            embedding=[0.1, 0.2, 0.3],
+        )
+        self.kg.add_node(node_uid="test_update_node_1", node_data=node_data)
+
+        # Retrieve the node and verify its data
+        retrieved_node_data = self.kg.get_node(node_uid="test_update_node_1")
+        self.assertEqual(retrieved_node_data, node_data)
+        
+        # Update the node
+        updated_node_data = NodeData(
+            node_uid="test_update_node_1",
+            node_title="Updated Test Node 1", # updated title
+            node_type="Person",
+            node_description="This is an updated test node", # updated description
+            node_degree=1,  # Updated degree
+            document_id="doc_1",
+            edges_to=[],
+            edges_from=[],
+            embedding=[0.1, 0.2, 0.3],
+        )
+        self.kg.update_node(node_uid="test_update_node_1", node_data=updated_node_data)
+
+        # Retrieve the node again and verify the update
+        retrieved_updated_node_data = self.kg.get_node(node_uid="test_update_node_1")
+        self.assertEqual(retrieved_updated_node_data, updated_node_data)
+
+        # Remove the node
+        self.kg.remove_node(node_uid="test_update_node_1")
+
+    def add_node_with_egde(self):
+        # Add a node with edge to other node that doesn't exist
+        node_data = NodeData(
+            node_uid="test_egde_node_1",
+            node_title="Test Node 1",
+            node_type="Person",
+            node_description="This is a test node",
+            node_degree=0,
+            document_id="doc_1",
+            edges_to=["fake node",],
+            edges_from=[],
+            embedding=[0.1, 0.2, 0.3],
+        )
+        
+        # Assert that adding the node raises a KeyError (or a more specific exception you handle)
+        with self.assertRaises(KeyError):  # Adjust exception type if needed
+            self.kg.add_node(node_uid="test_egde_node_1", node_data=node_data)
+
+        # Add valid nodes (required for edges)
+        node_data_1 = NodeData(
+            node_uid="test_egde_node_1",
+            node_title="Test Node 1",
+            node_type="Person",
+            node_description="This is a test node",
+            node_degree=0,
+            document_id="doc_1",
+            edges_to=[],
+            edges_from=[],
+            embedding=[0.1, 0.2, 0.3],
+        )
+        node_data_2 = NodeData(
+            node_uid="test_egde_node_2",
+            node_title="Test Node 2",
+            node_type="Person",
+            node_description="This is another test node",
+            node_degree=0,
+            document_id="doc_2",
+            edges_to=[],
+            edges_from=[],
+            embedding=[0.4, 0.5, 0.6],
+        )
+
+        node_data_3 = NodeData(
+            node_uid="test_egde_node_3",
+            node_title="Test Node 2",
+            node_type="Person",
+            node_description="This is another test node",
+            node_degree=0,
+            document_id="doc_2",
+            edges_to=["test_node_1",],
+            edges_from=["test_node_2",],
+            embedding=[0.4, 0.5, 0.6],
+        )
+
+        self.kg.add_node(node_uid="test_egde_node_1", node_data=node_data_1)
+        self.kg.add_node(node_uid="test_egde_node_2", node_data=node_data_2)
+        self.kg.add_node(node_uid="test_egde_node_3", node_data=node_data_3)
+
+        # Assert that the edges are reflected in the nodes' edge lists
+        node1 = self.kg.get_node("test_egde_node_1")
+        node2 = self.kg.get_node("test_egde_node_2")
+        node3 = self.kg.get_node("test_egde_node_3")
+
+        self.assertIn("test_egde_node_3", node1.edges_from)
+        self.assertIn("test_egde_node_3", node2.edges_to)
+        self.assertIn("test_egde_node_1", node3.edges_to)
+        self.assertIn("test_egde_node_2", node3.edges_from)
+
+        # Clean up
+        self.kg.remove_node(node_uid="test_egde_node_1")
+        self.kg.remove_node(node_uid="test_egde_node_2")
+        self.kg.remove_node(node_uid="test_egde_node_3")
+
+    def test_add_direcred_edge(self):
+        """Test adding an edge between nodes."""
+
+        # Add valid nodes (required for edges)
+        node_data_1 = NodeData(
+            node_uid="test_directed_node_1",
+            node_title="Test Node 1",
+            node_type="Person",
+            node_description="This is a test node",
+            node_degree=0,
+            document_id="doc_1",
+            edges_to=[],
+            edges_from=[],
+            embedding=[0.1, 0.2, 0.3],
+        )
+        node_data_2 = NodeData(
+            node_uid="test_directed_node_2",
+            node_title="Test Node 2",
+            node_type="Person",
+            node_description="This is another test node",
+            node_degree=0,
+            document_id="doc_2",
+            edges_to=[],
+            edges_from=[],
+            embedding=[0.4, 0.5, 0.6],
+        )
+        
+        self.kg.add_node(node_uid="test_directed_node_1", node_data=node_data_1)
+        self.kg.add_node(node_uid="test_directed_node_2", node_data=node_data_2)
+
+        # add edges between nodes
+        edge_data = EdgeData(
+            source_uid="test_directed_node_1",
+            target_uid="test_directed_node_2",
+            description="This is a test egde description"
+        )
+
+        self.kg.add_edge(edge_data=edge_data)
+
+        # Assert that the edge is reflected in the nodes' edge lists
+        node1 = self.kg.get_node("test_directed_node_1")
+        node2 = self.kg.get_node("test_directed_node_2")
+        self.assertIn("test_directed_node_2", node1.edges_to)
+        self.assertIn("test_directed_node_1", node2.edges_from)
+
+        # Clean Up nodes
+        self.kg.remove_node(node_uid="test_directed_node_1")
+        self.kg.remove_node(node_uid="test_directed_node_2")
+
+        # Clean Up egdes
+        self.kg.remove_edge(source_uid="test_directed_node_1", target_uid="test_directed_node_2")
+
+    def test_add_undirecred_edge(self):
+        """Test adding an edge between nodes."""
+
+        # Add valid nodes (required for edges)
+        node_data_1 = NodeData(
+            node_uid="test_undirected_node_1",
+            node_title="Test Node 1",
+            node_type="Person",
+            node_description="This is a test node",
+            node_degree=0,
+            document_id="doc_1",
+            edges_to=[],
+            edges_from=[],
+            embedding=[0.1, 0.2, 0.3],
+        )
+        node_data_2 = NodeData(
+            node_uid="test_undirected_node_2",
+            node_title="Test Node 2",
+            node_type="Person",
+            node_description="This is another test node",
+            node_degree=0,
+            document_id="doc_2",
+            edges_to=[],
+            edges_from=[],
+            embedding=[0.4, 0.5, 0.6],
+        )
+        
+        self.kg.add_node(node_uid="test_undirected_node_1", node_data=node_data_1)
+        self.kg.add_node(node_uid="test_undirected_node_2", node_data=node_data_2)
+
+        # add edges between nodes
+        edge_data = EdgeData(
+            source_uid="test_undirected_node_1",
+            target_uid="test_undirected_node_2",
+            description="This is a test egde description"
+        )
+
+        self.kg.add_edge(edge_data=edge_data, directed=False)
+
+        # Assert that the edge is reflected in the nodes' edge lists
+        node1 = self.kg.get_node("test_undirected_node_1")
+        node2 = self.kg.get_node("test_undirected_node_2")
+        self.assertIn("test_undirected_node_2", node1.edges_to)
+        self.assertIn("test_undirected_node_1", node2.edges_to)
+        self.assertIn("test_undirected_node_1", node2.edges_from)
+        self.assertIn("test_undirected_node_2", node1.edges_from)
+
+        # Clean Up nodes
+        self.kg.remove_node(node_uid="test_undirected_node_1")
+        self.kg.remove_node(node_uid="test_undirected_node_2")
+
+        # Clean Up egdes
+        self.kg.remove_edge(source_uid="test_undirected_node_1", target_uid="test_undirected_node_2")
+        self.kg.remove_edge(source_uid="test_undirected_node_2", target_uid="test_undirected_node_1")
+
+    def test_get_edge(self):
+        """Test retrieving an existing edge."""
+        # 1. Add nodes (required for edges)
+        node_data_1 = NodeData(
+            node_uid="test_getedge_node_1",
+            node_title="Test Node 1",
+            node_type="Person",
+            node_description="This is a test node",
+            node_degree=0,
+            document_id="doc_1",
+            edges_to=[],
+            edges_from=[],
+            embedding=[0.1, 0.2, 0.3],
+        )
+        node_data_2 = NodeData(
+            node_uid="test_getedge_node_2",
+            node_title="Test Node 2",
+            node_type="Person",
+            node_description="This is another test node",
+            node_degree=0,
+            document_id="doc_2",
+            edges_to=[],
+            edges_from=[],
+            embedding=[0.4, 0.5, 0.6],
+        )
+        self.kg.add_node(node_uid="test_getedge_node_1", node_data=node_data_1)
+        self.kg.add_node(node_uid="test_getedge_node_2", node_data=node_data_2)
+
+        # 2. Add an edge
+        edge_data = EdgeData(
+            source_uid="test_getedge_node_1",
+            target_uid="test_getedge_node_2",
+            description="This might be a description of the relationship of these two nodes"
+        )
+        self.kg.add_edge(edge_data=edge_data)
+
+        # Assuming you have a way to retrieve edge data in your implementation
+        retrieved_edge_data = self.kg.get_edge(source_uid="test_getedge_node_1", target_uid="test_getedge_node_2")
+
+
+        new_edge_uid = self.kg._generate_edge_uid(edge_data.source_uid, edge_data.target_uid)
+        target_edge_data = EdgeData(
+            source_uid="test_getedge_node_1",
+            target_uid="test_getedge_node_2",
+            description="This might be a description of the relationship of these two nodes",
+            edge_uid=new_edge_uid
+        )
+
+        self.assertEqual(retrieved_edge_data, target_edge_data)
+
+        # Clean up nodes
+        self.kg.remove_node(node_uid="test_getedge_node_1")
+        self.kg.remove_node(node_uid="test_getedge_node_2")
+
+        # Clean up edges
+        self.kg.remove_edge(source_uid="test_getedge_node_1", target_uid="test_getedge_node_2")
+
+    def test_update_edge(self):
+        """Test updating the data of an existing edge."""
+        # Add nodes (required for edges)
+        node_data_1 = NodeData(
+            node_uid="test_edgeupdate_node_1",
+            node_title="Test Node 1",
+            node_type="Person",
+            node_description="This is a test node",
+            node_degree=0,
+            document_id="doc_1",
+            edges_to=[],
+            edges_from=[],
+            embedding=[0.1, 0.2, 0.3],
+        )
+        node_data_2 = NodeData(
+            node_uid="test_edgeupdate_node_2",
+            node_title="Test Node 2",
+            node_type="Person",
+            node_description="This is another test node",
+            node_degree=0,
+            document_id="doc_2",
+            edges_to=[],
+            edges_from=[],
+            embedding=[0.4, 0.5, 0.6],
+        )
+        self.kg.add_node(node_uid="test_edgeupdate_node_1", node_data=node_data_1)
+        self.kg.add_node(node_uid="test_edgeupdate_node_2", node_data=node_data_2)
+
+        # Add an edge between
+        edge_data = EdgeData(
+            source_uid="test_edgeupdate_node_1",
+            target_uid="test_edgeupdate_node_2",
+            description="This is a boring egde description"
+        )
+
+        self.kg.add_edge(
+            edge_data=edge_data
+        )
+
+        # Update edge with new data
+        updated_edge_data = EdgeData(
+            source_uid="test_edgeupdate_node_1",
+            target_uid="test_edgeupdate_node_2",
+            description="Updated much better description"
+        )
+        self.kg.update_edge(edge_data=updated_edge_data)
+
+        # Verify that the edge data is updated
+        retrieved_updated_edge_data = self.kg.get_edge(
+            source_uid="test_edgeupdate_node_1", target_uid="test_edgeupdate_node_2"
+        )
+
+        validate_edge_data = EdgeData(
+            source_uid="test_edgeupdate_node_1",
+            target_uid="test_edgeupdate_node_2",
+            description="Updated much better description",
+            edge_uid=self.kg._generate_edge_uid(
+                edge_data.source_uid, edge_data.target_uid
+            )
+        )
+        
+        self.assertEqual(
+            retrieved_updated_edge_data, validate_edge_data
+        )
+
+        # Cleanup edges
+        self.kg.remove_edge(source_uid="test_edgeupdate_node_1", target_uid="test_edgeupdate_node_2")
+
+        # Cleanup nodes
+        self.kg.remove_node(node_uid="test_edgeupdate_node_1")
+        self.kg.remove_node(node_uid="test_edgeupdate_node_2")
+
+    def test_remove_edge(self):
+        """Test removing an edge between nodes."""
+        # Add nodes (required for edges)
+        node_data_1 = NodeData(
+            node_uid="test_removeegde_node_1",
+            node_title="Test Node 1",
+            node_type="Person",
+            node_description="This is a test node",
+            node_degree=0,
+            document_id="doc_1",
+            edges_to=[],
+            edges_from=[],
+            embedding=[0.1, 0.2, 0.3],
+        )
+        node_data_2 = NodeData(
+            node_uid="test_removeegde_node_2",
+            node_title="Test Node 2",
+            node_type="Person",
+            node_description="This is another test node",
+            node_degree=0,
+            document_id="doc_2",
+            edges_to=["test_node_1",],
+            edges_from=[],
+            embedding=[0.4, 0.5, 0.6],
+        )
+        self.kg.add_node(node_uid="test_removeegde_node_1", node_data=node_data_1)
+        self.kg.add_node(node_uid="test_removeegde_node_2", node_data=node_data_2)
+
+        self.kg.remove_edge(source_uid="test_removeegde_node_2", target_uid="test_removeegde_node_1")
+
+        # Assert that the edge is no longer in the nodes' edge lists
+        node1 = self.kg.get_node("test_removeegde_node_1")
+        node2 = self.kg.get_node("test_removeegde_node_2")
+        self.assertNotIn("test_removeegde_node_2", node1.edges_to)
+        self.assertNotIn("test_removeegde_node_2", node1.edges_from)
+        self.assertNotIn("test_removeegde_node_1", node2.edges_from)
+        self.assertNotIn("test_removeegde_node_1", node2.edges_to)
+
+        # Clean up nodes
+        self.kg.remove_node(node_uid="test_removeegde_node_1")
+        self.kg.remove_node(node_uid="test_removeegde_node_2")
+
+
+class FirestoreKGTests(NoSQLKnowledgeGraphTests, unittest.TestCase):
+    def create_kg_instance(self) -> NoSQLKnowledgeGraph:
+
+        import os
+        from dotenv import dotenv_values
+
+        os.chdir(os.path.dirname(os.path.abspath(__file__))) 
+
+        secrets = dotenv_values(".env")
+
+        gcp_credential_file = str(secrets["GCP_CREDENTIAL_FILE"])
+        project_id = str(secrets["GCP_PROJECT_ID"])
+        database_id = str(secrets["FIRESTORE_DB_ID"])
+        node_coll_id = str(secrets["NODE_COLL_ID"])
+        edges_coll_id = str(secrets["EDGES_COLL_ID"])
+        community_coll_id = str(secrets["COMM_COLL_ID"])
+
+        fskg = FirestoreKG(
+            gcp_project_id=project_id,
+            gcp_credential_file=gcp_credential_file,
+            firestore_db_id=database_id,
+            node_collection_id=node_coll_id,
+            edges_collection_id=edges_coll_id,
+            community_collection_id=community_coll_id
+        )
+        return fskg
+
+
+if __name__ == "__main__":
+    unittest.main()
