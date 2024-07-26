@@ -11,7 +11,7 @@ import google.auth
 
 import networkx as nx
 import matplotlib.pyplot as plt
-
+from matplotlib.lines import Line2D
 
 class FirestoreKG(NoSQLKnowledgeGraph):
     def __init__(self,
@@ -440,7 +440,7 @@ class FirestoreKG(NoSQLKnowledgeGraph):
             plt.axis("off")  # Turn off the axis
 
             # Add a legend for node colors
-            plt.legend(handles=[plt.Line2D([0], [0], marker='o', color='w', label=entity_type,
+            plt.legend(handles=[Line2D([0], [0], marker='o', color='w', label=entity_type,
                     markersize=10, markerfacecolor=color_map(i)) for i, entity_type in enumerate(entity_types)])
             
             plt.savefig(filename)
