@@ -76,7 +76,7 @@ class FirestoreKG(NoSQLKnowledgeGraph):
         for other_node_uid in node_data.edges_to:
             try:
                 other_node_data = self.get_node(other_node_uid)
-                other_node_data.edges_from = tuple(set(other_node_data.edges_from) | {node_uid})  # Add to edges_from
+                other_node_data.edges_from = list(set(other_node_data.edges_from) | {node_uid})  # Add to edges_from
                 self.update_node(other_node_uid, other_node_data)
             except KeyError:
                 # If the other node doesn't exist, just continue
@@ -85,7 +85,7 @@ class FirestoreKG(NoSQLKnowledgeGraph):
         for other_node_uid in node_data.edges_from:
             try:
                 other_node_data = self.get_node(other_node_uid)
-                other_node_data.edges_to = tuple(set(other_node_data.edges_to) | {node_uid})  # Add to edges_to
+                other_node_data.edges_to = list(set(other_node_data.edges_from) | {node_uid})  # Add to edges_to
                 self.update_node(other_node_uid, other_node_data)
             except KeyError:
                 # If the other node doesn't exist, just continue
@@ -149,7 +149,7 @@ class FirestoreKG(NoSQLKnowledgeGraph):
         for other_node_uid in node_data.edges_from:
             try:
                 other_node_data = self.get_node(other_node_uid)
-                other_node_data.edges_to = tuple(
+                other_node_data.edges_to = list(
                     edge for edge in other_node_data.edges_to if edge != node_uid
                 )
                 self.update_node(other_node_uid, other_node_data)
@@ -161,7 +161,7 @@ class FirestoreKG(NoSQLKnowledgeGraph):
         for other_node_uid in node_data.edges_to:
             try:
                 other_node_data = self.get_node(other_node_uid)
-                other_node_data.edges_from = tuple(
+                other_node_data.edges_from = list(
                     edge for edge in other_node_data.edges_from if edge != node_uid
                 )
                 self.update_node(other_node_uid, other_node_data)
@@ -199,11 +199,11 @@ class FirestoreKG(NoSQLKnowledgeGraph):
             source_node_data = self.get_node(edge_data.source_uid)
             target_node_data = self.get_node(edge_data.target_uid)
 
-            source_node_data.edges_to = tuple(set(source_node_data.edges_to) | {edge_data.target_uid})
+            source_node_data.edges_to = list(set(source_node_data.edges_to) | {edge_data.target_uid})
             self.update_node(edge_data.source_uid, source_node_data)
 
             # Add the edge to the target node's edges_from
-            target_node_data.edges_from = tuple(set(target_node_data.edges_from) | {edge_data.source_uid})
+            target_node_data.edges_from = list(set(target_node_data.edges_from) | {edge_data.source_uid})
             self.update_node(edge_data.target_uid, target_node_data)
 
             # Add the edge to the edges collection
@@ -213,11 +213,11 @@ class FirestoreKG(NoSQLKnowledgeGraph):
                        description=edge_data.description)
 
             if not directed:  # If undirected, add the reverse edge as well
-                target_node_data.edges_to = tuple(set(target_node_data.edges_to) | {edge_data.source_uid})
+                target_node_data.edges_to = list(set(target_node_data.edges_to) | {edge_data.source_uid})
                 self.update_node(edge_data.target_uid, target_node_data)
 
                 # Since it's undirected, also add source_uid to target_node_data.edges_from
-                source_node_data.edges_from = tuple(set(source_node_data.edges_from) | {edge_data.target_uid})
+                source_node_data.edges_from = list(set(source_node_data.edges_from) | {edge_data.target_uid})
                 self.update_node(edge_data.source_uid, source_node_data)
 
                 # Add the reverse edge to the edges collection
@@ -278,19 +278,18 @@ class FirestoreKG(NoSQLKnowledgeGraph):
             source_node_data = self.get_node(edge_data.source_uid)
             # Ensure the target_uid is present in edges_to
             if edge_data.target_uid not in source_node_data.edges_to:
-                source_node_data.edges_to = tuple(set(source_node_data.edges_to) | {edge_data.target_uid})
+                source_node_data.edges_to = list(set(source_node_data.edges_to) | {edge_data.target_uid})
                 self.update_node(edge_data.source_uid, source_node_data)
 
             # 3b. Update target node
             target_node_data = self.get_node(edge_data.target_uid)
             # Ensure the source_uid is present in edges_from
             if edge_data.source_uid not in target_node_data.edges_from:
-                target_node_data.edges_from = tuple(set(target_node_data.edges_from) | {edge_data.source_uid})
+                target_node_data.edges_from = list(set(target_node_data.edges_from) | {edge_data.source_uid})
                 self.update_node(edge_data.target_uid, target_node_data)
 
         except Exception as e:
             raise Exception(f"Error updating edge references in nodes: {e}") from e
-
 
     def remove_edge(self, source_uid: str, target_uid: str, directed: bool = True) -> None:
         """
@@ -310,11 +309,11 @@ class FirestoreKG(NoSQLKnowledgeGraph):
             # --- 1. Remove edge references from the NODES collection ---
             try:
                 source_node_data = self.get_node(source_uid)
-                source_node_data.edges_to = tuple(edge for edge in source_node_data.edges_to if edge != target_uid)
+                source_node_data.edges_to = list(edge for edge in source_node_data.edges_to if edge != target_uid)
                 self.update_node(source_uid, source_node_data)
 
                 if not directed: 
-                    source_node_data.edges_from = tuple(edge for edge in source_node_data.edges_from if edge != target_uid)
+                    source_node_data.edges_from = list(edge for edge in source_node_data.edges_from if edge != target_uid)
                     self.update_node(source_uid, source_node_data)
             except KeyError:
                 # Source node not found, move on to the next step
@@ -322,11 +321,11 @@ class FirestoreKG(NoSQLKnowledgeGraph):
 
             try:
                 target_node_data = self.get_node(target_uid)
-                target_node_data.edges_from = tuple(edge for edge in target_node_data.edges_from if edge != source_uid)
+                target_node_data.edges_from = list(edge for edge in target_node_data.edges_from if edge != source_uid)
                 self.update_node(target_uid, target_node_data)
 
                 if not directed: 
-                    target_node_data.edges_to = tuple(edge for edge in target_node_data.edges_to if edge != source_uid)
+                    target_node_data.edges_to = list(edge for edge in target_node_data.edges_to if edge != source_uid)
                     self.update_node(target_uid, target_node_data)
             except KeyError:
                 # Target node not found, move on to the next step
@@ -397,9 +396,9 @@ if __name__ == "__main__":
         node_description="This is a test node",
         node_degree=0,
         document_id="test_doc_id",
-        edges_to=("test_node",),
-        edges_from=(),
-        embedding=(0.1, 0.2, 0.3), 
+        edges_to=["test_node"],
+        edges_from=[],
+        embedding=[0.1, 0.2, 0.3], 
     )
 
     try:
@@ -416,9 +415,9 @@ if __name__ == "__main__":
         node_description="This is the updated test node description",
         node_degree=0,
         document_id="test_doc_id",
-        edges_to=("test_node",),
-        edges_from=(),
-        embedding=(0.1, 0.2, 0.3), 
+        edges_to=["test_node"],
+        edges_from=[],
+        embedding=[0.1, 0.2, 0.3], 
     )
 
     try:
