@@ -377,9 +377,18 @@ class FirestoreKG(NoSQLKnowledgeGraph):
         }
         edge_doc_ref.set(edge_data_dict)    
 
-    def _louvain_communities(self) -> None:
-        """Computes Network communities and updates datastore respectively."""
-        pass
+    def get_louvain_communities(self) -> list:
+        """Computes Network communities and returns result as list."""
+        # 1. Build (or update) the NetworkX graph
+        self.build_networkx()
+
+        # 2. Apply Louvain algorithm
+        if self.networkx is not None:
+            louvain_comm_list = nx.algorithms.community.louvain_communities(self.networkx)
+            return louvain_comm_list
+        else:
+            raise ValueError("Error: NetworkX graph is not initialized. Call build_networkx() first.")
+    
 
     def _generate_edge_uid(self, source_uid: str, target_uid: str):
         return f"{source_uid}_to_{target_uid}"
