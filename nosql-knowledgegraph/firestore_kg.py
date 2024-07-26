@@ -8,6 +8,8 @@ import firebase_admin
 from firebase_admin import firestore
 import google.auth
 
+import networkx as nx
+
 
 class FirestoreKG(NoSQLKnowledgeGraph):
     def __init__(self,
@@ -338,9 +340,31 @@ class FirestoreKG(NoSQLKnowledgeGraph):
         except Exception as e:
             raise Exception(f"Error: Could not remove edge. Details: {e}") from e
 
-    def list_communities(self, community_uid: str) -> List[CommunityData]:
+    def build_networkx(self):
+        """Get the NetworkX representation of the full graph."""
+
+        graph = nx.Graph()  # Initialize an undirected NetworkX graph
+
+        # 1. Add Nodes to the NetworkX Graph
+        nodes_ref = self.db.collection(self.node_coll_id).stream()
+        for doc in nodes_ref:
+            node_data = doc.to_dict()
+            graph.add_node(doc.id, **node_data)
+
+        # 2. Add Edges to the NetworkX Graph
+        edges_ref = self.db.collection(self.edges_coll_id).stream()
+        for doc in edges_ref:
+            edge_data = doc.to_dict()
+            source_uid = edge_data['source_uid']
+            target_uid = edge_data['target_uid']
+            # Consider adding edge attributes if needed (e.g., 'description')
+            graph.add_edge(source_uid, target_uid)
+
+        self.networkx = graph
+
+    def list_communities(self) -> List[CommunityData]:
         """Lists all communities for the given network."""
-        pass
+        return []
 
     def _update_egde_coll(self, edge_uid: str, source_uid: str, target_uid: str, description: str) -> None:
         """Update edge record in the edges collection."""
@@ -353,7 +377,7 @@ class FirestoreKG(NoSQLKnowledgeGraph):
         }
         edge_doc_ref.set(edge_data_dict)    
 
-    def _update_communities(self) -> None:
+    def _louvain_communities(self) -> None:
         """Computes Network communities and updates datastore respectively."""
         pass
 
