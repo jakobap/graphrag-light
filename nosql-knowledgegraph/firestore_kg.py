@@ -3,12 +3,14 @@ from graph2nosql import NoSQLKnowledgeGraph
 from data_model import NodeData, EdgeData, CommunityData
 
 from typing import Dict, List
+import datetime
 
 import firebase_admin
 from firebase_admin import firestore
 import google.auth
 
 import networkx as nx
+import matplotlib.pyplot as plt
 
 
 class FirestoreKG(NoSQLKnowledgeGraph):
@@ -389,10 +391,62 @@ class FirestoreKG(NoSQLKnowledgeGraph):
         else:
             raise ValueError("Error: NetworkX graph is not initialized. Call build_networkx() first.")
     
-
     def _generate_edge_uid(self, source_uid: str, target_uid: str):
         return f"{source_uid}_to_{target_uid}"
 
+    def visualize_graph(self, filename: str= f"graph_{datetime.datetime.now()}.png") -> None:
+        """Visualizes the provided networkx graph using matplotlib.
+
+        Args:
+            graph (nx.Graph): The graph to visualize.
+        """
+        self.build_networkx()
+        
+        if self.networkx is not None:
+            # Create a larger figure for better visualization
+            plt.figure(figsize=(12, 12))
+
+            # Use a spring layout for a more visually appealing arrangement
+            pos = nx.spring_layout(self.networkx, k=0.3, iterations=50)
+
+            # Draw nodes with different colors based on entity type
+            entity_types = set(data["node_type"] for _, data in self.networkx.nodes(data=True))
+            color_map = plt.cm.get_cmap("tab10", len(entity_types))
+            for i, entity_type in enumerate(entity_types):
+                nodes = [n for n, d in self.networkx.nodes(
+                    data=True) if d["node_type"] == entity_type]
+                nx.draw_networkx_nodes(
+                    self.networkx,
+                    pos,
+                    nodelist=nodes,
+                    node_color=[color_map(i)],  # type: ignore
+                    label=entity_type,
+                    node_size=[10 + 50 * self.networkx.degree(n) for n in nodes] # type: ignore
+                )
+
+            # Draw edges with labels
+            nx.draw_networkx_edges(self.networkx, pos, width=0.5, alpha=0.5)
+            # edge_labels = nx.get_edge_attributes(graph, "description")
+            # nx.draw_networkx_edge_labels(graph, pos, edge_labels=edge_labels, font_size=6)
+
+            # Add node labels with descriptions
+            node_labels = {
+                node: node
+                for node, data in self.networkx.nodes(data=True)
+            }
+            nx.draw_networkx_labels(self.networkx, pos, labels=node_labels, font_size=8)
+
+            plt.title("Extracted Knowledge Graph")
+            plt.axis("off")  # Turn off the axis
+
+            # Add a legend for node colors
+            plt.legend(handles=[plt.Line2D([0], [0], marker='o', color='w', label=entity_type,
+                    markersize=10, markerfacecolor=color_map(i)) for i, entity_type in enumerate(entity_types)])
+            
+            plt.savefig(filename)
+        
+        else:
+            raise ValueError("Error: NetworkX graph is not initialized. Call build_networkx() first.")
 
 if __name__ == "__main__":
     import os
