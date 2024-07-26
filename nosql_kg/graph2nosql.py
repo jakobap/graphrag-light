@@ -1,6 +1,6 @@
 from re import A
 import networkx
-from data_model import NodeData, EdgeData, CommunityData
+from nosql_kg.data_model import NodeData, EdgeData, CommunityData
 
 from abc import ABC, abstractmethod
 from typing import Dict, List

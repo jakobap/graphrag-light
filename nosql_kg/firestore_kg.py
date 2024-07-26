@@ -1,6 +1,6 @@
 from matplotlib.pylab import source
-from graph2nosql import NoSQLKnowledgeGraph
-from data_model import NodeData, EdgeData, CommunityData
+from nosql_kg.graph2nosql import NoSQLKnowledgeGraph
+from nosql_kg.data_model import NodeData, EdgeData, CommunityData
 
 from typing import Dict, List
 import datetime
@@ -447,6 +447,27 @@ class FirestoreKG(NoSQLKnowledgeGraph):
         
         else:
             raise ValueError("Error: NetworkX graph is not initialized. Call build_networkx() first.")
+
+    def node_exist(self, node_uid: str) -> bool:
+        """Checks for node existence and returns boolean"""
+        doc_ref = self.db.collection(self.node_coll_id).document(node_uid)
+        doc_snapshot = doc_ref.get()
+
+        if doc_snapshot.exists:
+            return True
+        else:
+            return False
+        
+    def edge_exist(self, source_uid: str, target_uid: str) -> bool:
+        """Checks for edge existence and returns boolean"""
+        edge_uid = self._generate_edge_uid(source_uid=source_uid, target_uid=target_uid)
+        doc_ref = self.db.collection(self.edges_coll_id).document(edge_uid)
+        doc_snapshot = doc_ref.get()
+
+        if doc_snapshot.exists:
+            return True
+        else:
+            return False
 
 if __name__ == "__main__":
     import os
