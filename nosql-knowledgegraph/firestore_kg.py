@@ -385,7 +385,7 @@ class FirestoreKG(NoSQLKnowledgeGraph):
         # 2. Apply Louvain algorithm
         if self.networkx is not None:
             louvain_comm_list = nx.algorithms.community.louvain_communities(self.networkx)
-            return louvain_comm_list
+            return louvain_comm_list # type: ignore
         else:
             raise ValueError("Error: NetworkX graph is not initialized. Call build_networkx() first.")
     
