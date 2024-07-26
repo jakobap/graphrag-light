@@ -1,15 +1,12 @@
-from matplotlib.pylab import source
-from networkx import directed_combinatorial_laplacian_matrix
 from graph2nosql import NoSQLKnowledgeGraph
 from firestore_kg import FirestoreKG
 from data_model import NodeData, EdgeData, CommunityData
 
 import unittest
 from abc import ABC, abstractmethod
-from typing import List, Type
-from data_model import NodeData, EdgeData, CommunityData  # Assuming you have this module
 
-class NoSQLKnowledgeGraphTests(ABC):
+
+class _NoSQLKnowledgeGraphTests(ABC):
     """
     Abstract base class to define test cases for NoSQLKnowledgeGraph implementations.
 
@@ -45,13 +42,13 @@ class NoSQLKnowledgeGraphTests(ABC):
         # Retrieve the node and verify its data
         retrieved_node_data = self.kg.get_node(node_uid="added_test_node_1")
         print(retrieved_node_data)
-        self.assertEqual(retrieved_node_data, node_data)
+        self.assertEqual(retrieved_node_data, node_data) # type: ignore
 
         # Remove the node
         self.kg.remove_node(node_uid="added_test_node_1")
 
         # Try to retrieve the node again (should raise KeyError)
-        with self.assertRaises(KeyError):
+        with self.assertRaises(KeyError): # type: ignore
             self.kg.get_node(node_uid="added_test_node_1")
 
     def test_update_node(self):
@@ -71,7 +68,7 @@ class NoSQLKnowledgeGraphTests(ABC):
 
         # Retrieve the node and verify its data
         retrieved_node_data = self.kg.get_node(node_uid="test_update_node_1")
-        self.assertEqual(retrieved_node_data, node_data)
+        self.assertEqual(retrieved_node_data, node_data) # type: ignore
         
         # Update the node
         updated_node_data = NodeData(
@@ -89,7 +86,7 @@ class NoSQLKnowledgeGraphTests(ABC):
 
         # Retrieve the node again and verify the update
         retrieved_updated_node_data = self.kg.get_node(node_uid="test_update_node_1")
-        self.assertEqual(retrieved_updated_node_data, updated_node_data)
+        self.assertEqual(retrieved_updated_node_data, updated_node_data) # type: ignore
 
         # Remove the node
         self.kg.remove_node(node_uid="test_update_node_1")
@@ -109,7 +106,7 @@ class NoSQLKnowledgeGraphTests(ABC):
         )
         
         # Assert that adding the node raises a KeyError (or a more specific exception you handle)
-        with self.assertRaises(KeyError):  # Adjust exception type if needed
+        with self.assertRaises(KeyError):  # type: ignore # Adjust exception type if needed
             self.kg.add_node(node_uid="test_egde_node_1", node_data=node_data)
 
         # Add valid nodes (required for edges)
@@ -157,10 +154,10 @@ class NoSQLKnowledgeGraphTests(ABC):
         node2 = self.kg.get_node("test_egde_node_2")
         node3 = self.kg.get_node("test_egde_node_3")
 
-        self.assertIn("test_egde_node_3", node1.edges_from)
-        self.assertIn("test_egde_node_3", node2.edges_to)
-        self.assertIn("test_egde_node_1", node3.edges_to)
-        self.assertIn("test_egde_node_2", node3.edges_from)
+        self.assertIn("test_egde_node_3", node1.edges_from) # type: ignore
+        self.assertIn("test_egde_node_3", node2.edges_to) # type: ignore
+        self.assertIn("test_egde_node_1", node3.edges_to) # type: ignore
+        self.assertIn("test_egde_node_2", node3.edges_from) # type: ignore
 
         # Clean up
         self.kg.remove_node(node_uid="test_egde_node_1")
@@ -209,8 +206,8 @@ class NoSQLKnowledgeGraphTests(ABC):
         # Assert that the edge is reflected in the nodes' edge lists
         node1 = self.kg.get_node("test_directed_node_1")
         node2 = self.kg.get_node("test_directed_node_2")
-        self.assertIn("test_directed_node_2", node1.edges_to)
-        self.assertIn("test_directed_node_1", node2.edges_from)
+        self.assertIn("test_directed_node_2", node1.edges_to) # type: ignore
+        self.assertIn("test_directed_node_1", node2.edges_from) # type: ignore
 
         # Clean Up nodes
         self.kg.remove_node(node_uid="test_directed_node_1")
@@ -261,10 +258,10 @@ class NoSQLKnowledgeGraphTests(ABC):
         # Assert that the edge is reflected in the nodes' edge lists
         node1 = self.kg.get_node("test_undirected_node_1")
         node2 = self.kg.get_node("test_undirected_node_2")
-        self.assertIn("test_undirected_node_2", node1.edges_to)
-        self.assertIn("test_undirected_node_1", node2.edges_to)
-        self.assertIn("test_undirected_node_1", node2.edges_from)
-        self.assertIn("test_undirected_node_2", node1.edges_from)
+        self.assertIn("test_undirected_node_2", node1.edges_to) # type: ignore
+        self.assertIn("test_undirected_node_1", node2.edges_to) # type: ignore
+        self.assertIn("test_undirected_node_1", node2.edges_from) # type: ignore
+        self.assertIn("test_undirected_node_2", node1.edges_from) # type: ignore
 
         # Clean Up nodes
         self.kg.remove_node(node_uid="test_undirected_node_1")
@@ -322,7 +319,7 @@ class NoSQLKnowledgeGraphTests(ABC):
             edge_uid=new_edge_uid
         )
 
-        self.assertEqual(retrieved_edge_data, target_edge_data)
+        self.assertEqual(retrieved_edge_data, target_edge_data) # type: ignore
 
         # Clean up nodes
         self.kg.remove_node(node_uid="test_getedge_node_1")
@@ -392,7 +389,7 @@ class NoSQLKnowledgeGraphTests(ABC):
             )
         )
         
-        self.assertEqual(
+        self.assertEqual( # type: ignore
             retrieved_updated_edge_data, validate_edge_data
         )
 
@@ -436,17 +433,17 @@ class NoSQLKnowledgeGraphTests(ABC):
         # Assert that the edge is no longer in the nodes' edge lists
         node1 = self.kg.get_node("test_removeegde_node_1")
         node2 = self.kg.get_node("test_removeegde_node_2")
-        self.assertNotIn("test_removeegde_node_2", node1.edges_to)
-        self.assertNotIn("test_removeegde_node_2", node1.edges_from)
-        self.assertNotIn("test_removeegde_node_1", node2.edges_from)
-        self.assertNotIn("test_removeegde_node_1", node2.edges_to)
+        self.assertNotIn("test_removeegde_node_2", node1.edges_to) # type: ignore
+        self.assertNotIn("test_removeegde_node_2", node1.edges_from) # type: ignore
+        self.assertNotIn("test_removeegde_node_1", node2.edges_from) # type: ignore
+        self.assertNotIn("test_removeegde_node_1", node2.edges_to) # type: ignore
 
         # Clean up nodes
         self.kg.remove_node(node_uid="test_removeegde_node_1")
         self.kg.remove_node(node_uid="test_removeegde_node_2")
 
 
-class FirestoreKGTests(NoSQLKnowledgeGraphTests, unittest.TestCase):
+class FirestoreKGTests(_NoSQLKnowledgeGraphTests, unittest.TestCase):
     def create_kg_instance(self) -> NoSQLKnowledgeGraph:
 
         import os
@@ -473,6 +470,5 @@ class FirestoreKGTests(NoSQLKnowledgeGraphTests, unittest.TestCase):
         )
         return fskg
 
-
 if __name__ == "__main__":
-    unittest.main()
+    unittest.main() 
