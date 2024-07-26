@@ -501,6 +501,94 @@ class _NoSQLKnowledgeGraphTests(ABC):
         self.kg.remove_node(node_uid="test_getnx_node_1")
         self.kg.remove_node(node_uid="test_getnx_node_2")
 
+    def test_get_louvain_communities(self):
+        """Test getting Louvain communities."""
+        # 1. Add nodes
+        node_data_1 = NodeData(
+            node_uid="test_louvain_node_1",
+            node_title="Test Node 1",
+            node_type="Person",
+            node_description="This is a test node",
+            node_degree=0,
+            document_id="doc_1",
+            edges_to=[],
+            edges_from=[],
+            embedding=[0.1, 0.2, 0.3],
+        )
+        node_data_2 = NodeData(
+            node_uid="test_louvain_node_2",
+            node_title="Test Node 2",
+            node_type="Person",
+            node_description="This is another test node",
+            node_degree=0,
+            document_id="doc_2",
+            edges_to=[],
+            edges_from=[],
+            embedding=[0.4, 0.5, 0.6],
+        )
+        node_data_3 = NodeData(
+            node_uid="test_louvain_node_3",
+            node_title="Test Node 3",
+            node_type="Person",
+            node_description="This is another test node",
+            node_degree=0,
+            document_id="doc_3",
+            edges_to=[],
+            edges_from=[],
+            embedding=[0.4, 0.5, 0.6],
+        )
+
+        node_data_3 = NodeData(
+            node_uid="test_louvain_node_4",
+            node_title="Test Node 3",
+            node_type="Person",
+            node_description="This is another test node",
+            node_degree=0,
+            document_id="doc_3",
+            edges_to=[],
+            edges_from=[],
+            embedding=[0.4, 0.5, 0.6],
+        )
+
+        self.kg.add_node(node_uid="test_louvain_node_1", node_data=node_data_1)
+        self.kg.add_node(node_uid="test_louvain_node_2", node_data=node_data_2)
+        self.kg.add_node(node_uid="test_louvain_node_3", node_data=node_data_3)
+        self.kg.add_node(node_uid="test_louvain_node_4", node_data=node_data_3)
+
+        # 2. Add edges to create a connected structure for community detection
+        edge_data_1 = EdgeData(
+            source_uid="test_louvain_node_1",
+            target_uid="test_louvain_node_2",
+            description="Test Edge Description 1"
+        )
+        edge_data_2 = EdgeData(
+            source_uid="test_louvain_node_2",
+            target_uid="test_louvain_node_3",
+            description="Test Edge Description 2"
+        )
+        self.kg.add_edge(edge_data=edge_data_1)
+        self.kg.add_edge(edge_data=edge_data_2)
+
+        # 3. Get the Louvain communities
+        communities = self.kg.get_louvain_communities()
+
+        # 4. Assertions
+        # Ensure communities is a list
+        self.assertIsInstance(communities, list) # type: ignore
+        # We are expecting exactly two communities since one node has no edges
+        self.assertTrue(len(communities) == 2) # type: ignore
+        # Check if each community is a set (or your expected data structure)
+        for community in communities:
+            self.assertIsInstance(community, set) # type: ignore
+
+        # 5. Clean up (optional, depending on your test setup)
+        self.kg.remove_edge(source_uid="test_louvain_node_1", target_uid="test_louvain_node_2")
+        self.kg.remove_edge(source_uid="test_louvain_node_2", target_uid="test_louvain_node_3")
+        self.kg.remove_node(node_uid="test_louvain_node_1")
+        self.kg.remove_node(node_uid="test_louvain_node_2")
+        self.kg.remove_node(node_uid="test_louvain_node_3")
+        self.kg.remove_node(node_uid="test_louvain_node_4")
+
 
 class FirestoreKGTests(_NoSQLKnowledgeGraphTests, unittest.TestCase):
     def create_kg_instance(self) -> NoSQLKnowledgeGraph:
