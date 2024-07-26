@@ -4,9 +4,10 @@ from typing import Tuple
 
 @dataclass
 class EdgeData:
-    destination_uid: str
+    source_uid: str
     target_uid: str 
     description: str
+    edge_uid: str | None = None
 
 
 @dataclass
