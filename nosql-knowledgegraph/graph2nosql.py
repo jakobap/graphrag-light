@@ -30,17 +30,17 @@ class NoSQLKnowledgeGraph(ABC):
         pass
     
     @abstractmethod
-    def add_edge(self, source_uid: str, target_uid: str, edge_data: EdgeData) -> None:
+    def add_edge(self, edge_data: EdgeData, directed: bool = True) -> None:
         """Adds an edge (relationship) between two entities in the knowledge graph."""
         pass
     
     @abstractmethod
-    def get_edge(self, source_uid: str, target_uid: str, relationship: str) -> EdgeData:
+    def get_edge(self, source_uid: str, target_uid: str) -> EdgeData:
         """Retrieves an edge between two entities."""
         pass
 
     @abstractmethod
-    def update_edge(self, source_uid: str, target_uid: str, edge_data: EdgeData) -> None:
+    def update_edge(self, edge_data: EdgeData) -> None:
         """Updates an existing edge in the knowledge graph."""
         pass
 
@@ -58,6 +58,10 @@ class NoSQLKnowledgeGraph(ABC):
     def _update_communities(self) -> None:
         """Computes Network communities and updates datastore respectively."""
         pass
+
+    def _generate_edge_uid(self, source_uid: str, target_uid: str) -> str:
+        """Generates Edge uid for the network based on source and target nod uid"""
+        return ""
 
 
 if __name__ == "__main__":
