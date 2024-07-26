@@ -5,6 +5,8 @@ from data_model import NodeData, EdgeData, CommunityData
 import unittest
 from abc import ABC, abstractmethod
 
+import networkx as nx
+
 
 class _NoSQLKnowledgeGraphTests(ABC):
     """
@@ -441,6 +443,63 @@ class _NoSQLKnowledgeGraphTests(ABC):
         # Clean up nodes
         self.kg.remove_node(node_uid="test_removeegde_node_1")
         self.kg.remove_node(node_uid="test_removeegde_node_2")
+
+    def test_get_networkx(self):
+        """Test getting the networkx graph."""
+        # 1. Add nodes 
+        node_data_1 = NodeData(
+            node_uid="test_getnx_node_1",
+            node_title="Test Node 1",
+            node_type="Person",
+            node_description="This is a test node",
+            node_degree=0,
+            document_id="doc_1",
+            edges_to=[],
+            edges_from=[],
+            embedding=[0.1, 0.2, 0.3],
+        )
+        node_data_2 = NodeData(
+            node_uid="test_getnx_node_2",
+            node_title="Test Node 2",
+            node_type="Person",
+            node_description="This is another test node",
+            node_degree=0,
+            document_id="doc_2",
+            edges_to=[],
+            edges_from=[],
+            embedding=[0.4, 0.5, 0.6],
+        )
+        self.kg.add_node(node_uid="test_getnx_node_1", node_data=node_data_1)
+        self.kg.add_node(node_uid="test_getnx_node_2", node_data=node_data_2)
+
+        # 2. Add an edge
+        edge_data = EdgeData(
+            source_uid="test_getnx_node_1",
+            target_uid="test_getnx_node_2",
+            description="Test Edge Description"
+        )
+        self.kg.add_edge(edge_data=edge_data)
+
+        # 3. Get the NetworkX graph
+        self.kg.build_networkx()
+
+        # 4. Assertions
+        # Check if the graph is the correct type
+        self.assertIsInstance(self.kg.networkx, nx.Graph) # type: ignore
+        # Check if the number of nodes is correct
+        self.assertEqual(self.kg.networkx.number_of_nodes(), 2) # type: ignore
+        # Check if the number of edges is correct
+        self.assertEqual(self.kg.networkx.number_of_edges(), 1) # type: ignore
+        # Check if specific nodes exist in the graph
+        self.assertTrue(self.kg.networkx.has_node("test_getnx_node_1")) # type: ignore
+        self.assertTrue(self.kg.networkx.has_node("test_getnx_node_2")) # type: ignore
+        # Check if a specific edge exists in the graph
+        self.assertTrue(self.kg.networkx.has_edge("test_getnx_node_1", "test_getnx_node_2")) # type: ignore
+
+        # 5. Clean up (optional, depending on your test setup)
+        self.kg.remove_edge(source_uid="test_getnx_node_1", target_uid="test_getnx_node_2")
+        self.kg.remove_node(node_uid="test_getnx_node_1")
+        self.kg.remove_node(node_uid="test_getnx_node_2")
 
 
 class FirestoreKGTests(_NoSQLKnowledgeGraphTests, unittest.TestCase):
