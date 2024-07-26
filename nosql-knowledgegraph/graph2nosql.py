@@ -61,13 +61,8 @@ class NoSQLKnowledgeGraph(ABC):
         pass
 
     @abstractmethod
-    def list_communities(self) -> List[CommunityData]:
-        """Lists all communities for the given network."""
-        pass
-
-    @abstractmethod
-    def _louvain_communities(self) -> None:
-        """Computes Louvain Communities given your graph and stores them in the communities collection of your DB.
+    def get_louvain_communities(self) -> List[CommunityData]:
+        """Computes and returns all Louvain communities for the given network.
         https://www.nature.com/articles/s41598-019-41695-z
         """
         pass
