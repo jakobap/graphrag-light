@@ -1,13 +1,17 @@
+import networkx
 from data_model import NodeData, EdgeData, CommunityData
 
 from abc import ABC, abstractmethod
 from typing import Dict, List
+
+import networkx as nx
 
 
 class NoSQLKnowledgeGraph(ABC):
     """
     Base Class for storing and interacting with the KG and manages data model.  
     """
+    networkx: nx.Graph | None = None # networkx representation of graph in nosqldb
 
     @abstractmethod
     def add_node(self, node_uid: str, node_data: NodeData) -> None:
@@ -50,13 +54,22 @@ class NoSQLKnowledgeGraph(ABC):
         pass
 
     @abstractmethod
-    def list_communities(self, community_uid: str) -> List[CommunityData]:
+    def build_networkx(self) -> None:
+        """Builds the NetworkX representation of the full graph.
+        https://networkx.org/documentation/stable/index.html
+        """
+        pass
+
+    @abstractmethod
+    def list_communities(self) -> List[CommunityData]:
         """Lists all communities for the given network."""
         pass
 
     @abstractmethod
-    def _update_communities(self) -> None:
-        """Computes Network communities and updates datastore respectively."""
+    def _louvain_communities(self) -> None:
+        """Computes Louvain Communities given your graph and stores them in the communities collection of your DB.
+        https://www.nature.com/articles/s41598-019-41695-z
+        """
         pass
 
     def _generate_edge_uid(self, source_uid: str, target_uid: str) -> str:
