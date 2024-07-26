@@ -1,9 +1,13 @@
 from cgitb import text
 from typing import Any
+
+from httpx import get
 from IngestionSession import IngestionSession
 from LLMSession import LLMSession
 
 import prompts
+from nosql_kg.firestore_kg import FirestoreKG
+from nosql_kg import data_model
 
 import networkx as nx
 
@@ -14,10 +18,11 @@ import datetime
 from collections.abc import Mapping
 import matplotlib.pyplot as plt
 from langfuse.decorators import observe, langfuse_context
+from dotenv import dotenv_values
 
 
 class GraphExtractor:
-    def __init__(self) -> None:
+    def __init__(self, graph_db) -> None:
         self.tuple_delimiter = "<|>"
         self.record_delimiter = "##"
         self.completion_delimiter = "<|COMPLETE|>"
@@ -29,6 +34,8 @@ class GraphExtractor:
             tuple_delimiter=self.tuple_delimiter,
             completion_delimiter=self.completion_delimiter,
         )
+
+        self.graph_db = graph_db
 
         self.llm = LLMSession(system_message=self.graph_extraction_system,
                               model_name="gemini-1.5-pro-001")
@@ -67,7 +74,8 @@ class GraphExtractor:
 
         langfuse_context.flush()
 
-        return self._process_results(results={0: init_extr_result})
+        self._process_fskg(results={0: init_extr_result})
+
 
     def _construct_extractor_input(self, input_text: str) -> str:
         formatted_extraction_input = prompts.GRAPH_EXTRACTION_INPUT.format(
@@ -75,6 +83,127 @@ class GraphExtractor:
             input_text=input_text,
         )
         return formatted_extraction_input
+
+    def _process_fskg(
+        self,
+        results: dict[int, str],
+        join_descriptions: bool = True,
+    ) -> None:
+        """Parse the result string to create an undirected unipartite graph.
+
+        Args:
+            - results - dict of results from the extraction chain
+        Returns:
+            - output - unipartite graph in graphML format
+        """
+
+        fskg = self.graph_db
+
+        for source_doc_id, extracted_data in results.items():
+            records = [r.strip()
+                       for r in extracted_data.split(self.record_delimiter)]
+
+            for record in records:
+                record = re.sub(r"^\(|\)$", "", record.strip())
+                record_attributes = record.split(self.tuple_delimiter)
+
+                if record_attributes[0] == '"entity"' and len(record_attributes) >= 4:
+                    # add this record as a node in the G
+                    entity_name = self._clean_str(record_attributes[1].upper())
+                    entity_type = self._clean_str(record_attributes[2].upper())
+                    entity_description = self._clean_str(record_attributes[3])
+
+                    if fskg.node_exist(entity_name):
+                        node = fskg.get_node(entity_name)
+                        if join_descriptions:
+                            # Combine descriptions, avoiding duplicates with a set
+                            combined_descriptions = set(
+                                [node.node_description] + [entity_description])
+                            node.node_description = "\n".join(
+                                combined_descriptions)
+                        else:
+                            if len(entity_description) > len(node.node_description):
+                                node.node_description = entity_description
+                        # Combine source IDs, avoiding duplicates with a set
+                        combined_source_ids = set(
+                            [node.document_id] + [str(source_doc_id)])
+                        node.document_id = ", ".join(combined_source_ids)
+                        node.node_type = entity_type if entity_type != "" else node.node_type
+                    else:
+                        node_data = data_model.NodeData(
+                            node_uid=entity_name,
+                            node_title=entity_name,
+                            node_type=entity_type,
+                            node_description=entity_description,
+                            document_id=str(source_doc_id),
+                            node_degree=0,
+                            )
+
+                        fskg.add_node(node_uid=entity_name, node_data=node_data)
+
+                if (
+                    record_attributes[0] == '"relationship"'
+                    and len(record_attributes) >= 5
+                ):
+                    # add this record as edge
+                    source = self._clean_str(record_attributes[1].upper())
+                    target = self._clean_str(record_attributes[2].upper())
+                    edge_description = self._clean_str(record_attributes[3])
+                    edge_source_id = self._clean_str(str(source_doc_id))
+                    weight = (
+                        float(record_attributes[-1])
+                        if isinstance(record_attributes[-1], numbers.Number)
+                        else 1.0
+                    )
+
+                    if not fskg.node_exist(source):
+                        node_data = data_model.NodeData(
+                            node_uid=source,
+                            node_title=source,
+                            node_type="",
+                            node_description="",
+                            document_id="",
+                            node_degree=0,
+                            )
+
+                        fskg.add_node(node_uid=entity_name, node_data=node_data)
+
+                    if not fskg.node_exist(target):
+                        node_data = data_model.NodeData(
+                            node_uid=target,
+                            node_title=target,
+                            node_type="",
+                            node_description="",
+                            document_id="",
+                            node_degree=0,
+                            )
+
+                        fskg.add_node(node_uid=entity_name, node_data=node_data)
+
+                    if fskg.edge_exist(source, target):
+                        edge_data = fskg.get_edge(source, target)
+                        if edge_data is not None:
+                            # weight += edge_data["weight"]
+                            if join_descriptions:
+                                # Combine descriptions, avoiding duplicates with a set
+                                combined_descriptions = set(
+                                    [edge_data.description] + [edge_description])
+                                edge_description = "\n".join(
+                                    combined_descriptions)
+                            # # Combine source IDs, avoiding duplicates with a set
+                            # combined_source_ids = f"{[edge_data.document_id]} + {[str(source_doc_id)]}"
+                            # edge_source_id = ", ".join(combined_source_ids)
+
+                    edge_data = data_model.EdgeData(
+                        source_uid=source,
+                        target_uid=target,
+                        description=edge_description,
+                        document_id=edge_data.document_id,
+                    )
+
+                    fskg.add_edge(edge_data=edge_data)
+
+        return
 
     def _process_results(
         self,
@@ -198,71 +327,44 @@ class GraphExtractor:
         # https://stackoverflow.com/questions/4324790/removing-control-characters-from-a-string-in-python
         return re.sub(r"[\x00-\x1f\x7f-\x9f]", "", result)
 
-    def visualize_graph(self, graph: nx.Graph, filename: str= f"graph_{datetime.datetime.now()}.png") -> None:
-        """Visualizes the provided networkx graph using matplotlib.
-
-        Args:
-            graph (nx.Graph): The graph to visualize.
-        """
-
-        # Create a larger figure for better visualization
-        plt.figure(figsize=(12, 12))
-
-        # Use a spring layout for a more visually appealing arrangement
-        pos = nx.spring_layout(graph, k=0.3, iterations=50)
-
-        # Draw nodes with different colors based on entity type
-        entity_types = set(data["type"] for _, data in graph.nodes(data=True))
-        color_map = plt.cm.get_cmap("tab10", len(entity_types))
-        for i, entity_type in enumerate(entity_types):
-            nodes = [n for n, d in graph.nodes(
-                data=True) if d["type"] == entity_type]
-            nx.draw_networkx_nodes(
-                graph,
-                pos,
-                nodelist=nodes,
-                node_color=[color_map(i)],  # type: ignore
-                label=entity_type,
-                node_size=[10 + 50 * graph.degree(n) for n in nodes] # type: ignore
-            )
-
-        # Draw edges with labels
-        nx.draw_networkx_edges(graph, pos, width=0.5, alpha=0.5)
-        # edge_labels = nx.get_edge_attributes(graph, "description")
-        # nx.draw_networkx_edge_labels(graph, pos, edge_labels=edge_labels, font_size=6)
-
-        # Add node labels with descriptions
-        node_labels = {
-            node: node
-            for node, data in graph.nodes(data=True)
-        }
-        nx.draw_networkx_labels(graph, pos, labels=node_labels, font_size=8)
-
-        plt.title("Extracted Knowledge Graph")
-        plt.axis("off")  # Turn off the axis
-
-        # Add a legend for node colors
-        plt.legend(handles=[plt.Line2D([0], [0], marker='o', color='w', label=entity_type,
-                   markersize=10, markerfacecolor=color_map(i)) for i, entity_type in enumerate(entity_types)])
-        
-        plt.savefig(filename)
-        # plt.show()
-        return None
-
 
 if __name__ == "__main__":
-    ingestion = IngestionSession()
-    extractor = GraphExtractor()
+
+    secrets = dotenv_values(".env")
+
+    firestore_credential_file = str(secrets["GCP_CREDENTIAL_FILE"])
+    project_id = str(secrets["GCP_PROJECT_ID"])
+    database_id = str(secrets["FIRESTORE_DB_ID"])
+    node_coll_id = str(secrets["NODE_COLL_ID"])
+    edges_coll_id = str(secrets["EDGES_COLL_ID"])
+    community_coll_id = str(secrets["COMM_COLL_ID"])
+
+    fskg = FirestoreKG(
+        gcp_project_id=project_id,
+        gcp_credential_file=firestore_credential_file,
+        firestore_db_id=database_id,
+        node_collection_id=node_coll_id,
+        edges_collection_id=edges_coll_id,
+        community_collection_id=community_coll_id
+    )
+
+    # ingestion = IngestionSession()
+    # extractor = GraphExtractor(graph_db=fskg)
 
     # document_string = ingestion(
     #     new_file_name="./pdf_articles/Winners of Future Hamburg Award 2023 announced _ Hamburg News.pdf", ingest_local_file=True
     # )
 
-    document_string = ingestion(
-        new_file_name="./pdf_articles/Physicist Narges Mohammadi awarded Nobe... for human-rights work – Physics World.pdf", ingest_local_file=True
-    )
+    # document_string = ingestion(
+    #     new_file_name="./pdf_articles/Physicist Narges Mohammadi awarded Nobe... for human-rights work – Physics World.pdf", ingest_local_file=True
+    # )
+    
+    # extracted_graph = extractor(text_input=document_string, max_extr_rounds=1)
 
-    extracted_graph = extractor(text_input=document_string)
-    extractor.visualize_graph(extracted_graph)
+    fskg.visualize_graph("visualized.png")
+
+    
+
+    # extractor.visualize_graph(extracted_graph)
 
     print("Hello World!")
