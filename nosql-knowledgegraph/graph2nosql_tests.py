@@ -589,6 +589,75 @@ class _NoSQLKnowledgeGraphTests(ABC):
         self.kg.remove_node(node_uid="test_louvain_node_3")
         self.kg.remove_node(node_uid="test_louvain_node_4")
 
+    def test_visualize_graph(self):
+        """Test visualizing the graph. This test is not asserting anything.
+        It's only creating a visualization for manual inspection."""
+
+        # 1. Add nodes
+        node_data_1 = NodeData(
+            node_uid="test_vis_node_1",
+            node_title="Test Node 1",
+            node_type="Person",
+            node_description="This is a test node",
+            node_degree=0,
+            document_id="doc_1",
+            edges_to=[],
+            edges_from=[],
+            embedding=[0.1, 0.2, 0.3],
+        )
+        node_data_2 = NodeData(
+            node_uid="test_vis_node_2",
+            node_title="Test Node 2",
+            node_type="Person",
+            node_description="This is another test node",
+            node_degree=0,
+            document_id="doc_2",
+            edges_to=[],
+            edges_from=[],
+            embedding=[0.4, 0.5, 0.6],
+        )
+        node_data_3 = NodeData(
+            node_uid="test_vis_node_3",
+            node_title="Test Node 3",
+            node_type="Organization",
+            node_description="This is another test node",
+            node_degree=0,
+            document_id="doc_3",
+            edges_to=[],
+            edges_from=[],
+            embedding=[0.4, 0.5, 0.6],
+        )
+        self.kg.add_node(node_uid="test_vis_node_1", node_data=node_data_1)
+        self.kg.add_node(node_uid="test_vis_node_2", node_data=node_data_2)
+        self.kg.add_node(node_uid="test_vis_node_3", node_data=node_data_3)
+
+        # 2. Add edges to create connections for visualization
+        edge_data_1 = EdgeData(
+            source_uid="test_vis_node_1",
+            target_uid="test_vis_node_2",
+            description="Test Edge Description 1"
+        )
+        edge_data_2 = EdgeData(
+            source_uid="test_vis_node_2",
+            target_uid="test_vis_node_3",
+            description="Test Edge Description 2"
+        )
+        self.kg.add_edge(edge_data=edge_data_1)
+        self.kg.add_edge(edge_data=edge_data_2)
+
+        # 3. Visualize the graph
+        try:
+            self.kg.visualize_graph(filename="test_graph.png")
+        except Exception as e:
+            raise ValueError(f"An error occurred during visualization: {e}") 
+
+        # 4. Clean up (optional, depending on your test setup)
+        self.kg.remove_edge(source_uid="test_vis_node_1", target_uid="test_vis_node_2")
+        self.kg.remove_edge(source_uid="test_vis_node_2", target_uid="test_vis_node_3")
+        self.kg.remove_node(node_uid="test_vis_node_1")
+        self.kg.remove_node(node_uid="test_vis_node_2")
+        self.kg.remove_node(node_uid="test_vis_node_3")
+
 
 class FirestoreKGTests(_NoSQLKnowledgeGraphTests, unittest.TestCase):
     def create_kg_instance(self) -> NoSQLKnowledgeGraph:
