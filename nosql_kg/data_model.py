@@ -8,6 +8,7 @@ class EdgeData:
     target_uid: str 
     description: str
     edge_uid: str | None = None
+    document_id: str | None = None
 
 
 @dataclass
