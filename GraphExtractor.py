@@ -1,10 +1,12 @@
 from cgitb import text
+from html import entities
 from typing import Any
 
 from httpx import get
 from IngestionSession import IngestionSession
 from LLMSession import LLMSession
 
+from nosql_kg.graph2nosql import NoSQLKnowledgeGraph
 import prompts
 from nosql_kg.firestore_kg import FirestoreKG
 from nosql_kg import data_model
@@ -43,7 +45,7 @@ class GraphExtractor:
         self.ingestion = IngestionSession()
 
     @observe()
-    def __call__(self, text_input: str, max_extr_rounds:int=5) -> nx.Graph:
+    def __call__(self, text_input: str, max_extr_rounds: int = 5) -> None:
         input_prompt = self._construct_extractor_input(input_text=text_input)
 
         # response = self.llm.generate(client_query_string=input_prompt)
@@ -51,14 +53,16 @@ class GraphExtractor:
 
         print("+++++ Init Graph Extraction +++++")
 
-        init_extr_result = self.llm.generate_chat(client_query_string=input_prompt,temperature=0, top_p=0)
+        init_extr_result = self.llm.generate_chat(
+            client_query_string=input_prompt, temperature=0, top_p=0)
         print(f"Init result: {init_extr_result}")
 
         for round_i in range(max_extr_rounds):
 
             print(f"+++++ Contd. Graph Extraction round {round_i} +++++")
 
-            round_response = self.llm.generate_chat(client_query_string=prompts.CONTINUE_PROMPT,temperature=0, top_p=0)
+            round_response = self.llm.generate_chat(
+                client_query_string=prompts.CONTINUE_PROMPT, temperature=0, top_p=0)
             init_extr_result += round_response or ""
 
             print(f"Round response: {round_response}")
@@ -66,16 +70,17 @@ class GraphExtractor:
             if round_i >= max_extr_rounds - 1:
                 break
 
-            completion_check = self.llm.generate_chat(client_query_string=prompts.LOOP_PROMPT, temperature=0, top_p=0)
+            completion_check = self.llm.generate_chat(
+                client_query_string=prompts.LOOP_PROMPT, temperature=0, top_p=0)
 
             if "YES" not in completion_check:
-                print(f"+++++ Complete with completion check after round {round_i} +++++")
+                print(
+                    f"+++++ Complete with completion check after round {round_i} +++++")
                 break
 
         langfuse_context.flush()
 
         self._process_fskg(results={0: init_extr_result})
-
 
     def _construct_extractor_input(self, input_text: str) -> str:
         formatted_extraction_input = prompts.GRAPH_EXTRACTION_INPUT.format(
@@ -137,9 +142,10 @@ class GraphExtractor:
                             node_description=entity_description,
                             document_id=str(source_doc_id),
                             node_degree=0,
-                            )
+                        )
 
-                        fskg.add_node(node_uid=entity_name, node_data=node_data)
+                        fskg.add_node(node_uid=entity_name,
+                                      node_data=node_data)
 
                 if (
                     record_attributes[0] == '"relationship"'
@@ -164,9 +170,10 @@ class GraphExtractor:
                             node_description="",
                             document_id="",
                             node_degree=0,
-                            )
+                        )
 
-                        fskg.add_node(node_uid=entity_name, node_data=node_data)
+                        fskg.add_node(node_uid=entity_name,
+                                      node_data=node_data)
 
                     if not fskg.node_exist(target):
                         node_data = data_model.NodeData(
@@ -176,9 +183,10 @@ class GraphExtractor:
                             node_description="",
                             document_id="",
                             node_degree=0,
-                            )
+                        )
 
-                        fskg.add_node(node_uid=entity_name, node_data=node_data)
+                        fskg.add_node(node_uid=entity_name,
+                                      node_data=node_data)
 
                     if fskg.edge_exist(source, target):
                         edge_data = fskg.get_edge(source, target)
@@ -198,7 +206,7 @@ class GraphExtractor:
                         source_uid=source,
                         target_uid=target,
                         description=edge_description,
-                        document_id=edge_data.document_id,
+                        document_id=edge_source_id,
                     )
 
                     fskg.add_edge(edge_data=edge_data)
@@ -327,6 +335,48 @@ class GraphExtractor:
         # https://stackoverflow.com/questions/4324790/removing-control-characters-from-a-string-in-python
         return re.sub(r"[\x00-\x1f\x7f-\x9f]", "", result)
 
+    def generate_comm_reports(self, kg: NoSQLKnowledgeGraph) -> None:
+
+        llm = LLMSession(system_message=prompts.COMMUNITY_REPORT_SYSTEM,
+                model_name="gemini-1.5-pro-001")
+
+        comms = kg.get_louvain_communities()
+
+        for c in comms:
+            comm_nodes = []
+            comm_edges = []
+            for n in c:
+                node = kg.get_node(n)
+                node_edges_to = [{"edge_source_entity": kg.get_edge(source_uid=node.node_uid,
+                                                                  target_uid=e),
+                                   "edge_target_entity": kg.get_edge(source_uid=node.node_uid,
+                                                                  target_uid=e),
+                                   "edge_description": kg.get_edge(source_uid=node.node_uid,
+                                                                  target_uid=e)} for e in node.edges_to]
+                
+                node_edges_from = [{"edge_source_entity": kg.get_edge(source_uid=e,
+                                                                  target_uid=node.node_uid),
+                                   "edge_target_entity": kg.get_edge(source_uid=e,
+                                                                  target_uid=node.node_uid),
+                                   "edge_description": kg.get_edge(source_uid=e,
+                                                                  target_uid=node.node_uid)} for e in node.edges_from]
+
+                node_data = {"entity_id": node.node_title,
+                             "entity_type": node.node_type,
+                             "entity_description": node.node_description}
+
+                comm_nodes.append(node_data)
+                comm_edges.extend(node_edges_to)
+                comm_edges.extend(node_edges_from)
+
+            comm_report = llm.generate(client_query_string=prompts.COMMUNITY_REPORT_QUERY.format(
+                entities=comm_nodes,
+                relationships=comm_edges))
+            
+            print(f"Community Report for {c}: {comm_report}")
+
+        return None
+
 
 if __name__ == "__main__":
 
@@ -348,8 +398,8 @@ if __name__ == "__main__":
         community_collection_id=community_coll_id
     )
 
-    # ingestion = IngestionSession()
-    # extractor = GraphExtractor(graph_db=fskg)
+    ingestion = IngestionSession()
+    extractor = GraphExtractor(graph_db=fskg)
 
     # document_string = ingestion(
     #     new_file_name="./pdf_articles/Winners of Future Hamburg Award 2023 announced _ Hamburg News.pdf", ingest_local_file=True
@@ -358,12 +408,12 @@ if __name__ == "__main__":
     # document_string = ingestion(
     #     new_file_name="./pdf_articles/Physicist Narges Mohammadi awarded Nobe... for human-rights work – Physics World.pdf", ingest_local_file=True
     # )
-    
+
     # extracted_graph = extractor(text_input=document_string, max_extr_rounds=1)
 
-    fskg.visualize_graph("visualized.png")
+    # fskg.visualize_graph("visualized.png")
 
-    
+    extractor.generate_comm_reports(kg=fskg)
 
     # extractor.visualize_graph(extracted_graph)
 
