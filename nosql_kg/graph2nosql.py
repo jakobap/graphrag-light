@@ -12,7 +12,7 @@ class NoSQLKnowledgeGraph(ABC):
     """
     Base Class for storing and interacting with the KG and manages data model.  
     """
-    networkx: nx.Graph | None = None # networkx representation of graph in nosqldb
+    networkx: nx.Graph | None = None  # networkx representation of graph in nosqldb
 
     @abstractmethod
     def add_node(self, node_uid: str, node_data: NodeData) -> None:
@@ -23,22 +23,22 @@ class NoSQLKnowledgeGraph(ABC):
     def get_node(self, node_uid: str) -> NodeData:
         """Retrieves an node from the knowledge graph."""
         pass
-    
+
     @abstractmethod
     def update_node(self, node_uid: str, node_data: NodeData) -> None:
         """Updates an existing node in the knowledge graph."""
         pass
-    
+
     @abstractmethod
     def remove_node(self, node_uid: str) -> None:
         """Removes an node from the knowledge graph."""
         pass
-    
+
     @abstractmethod
     def add_edge(self, edge_data: EdgeData, directed: bool = True) -> None:
         """Adds an edge (relationship) between two entities in the knowledge graph."""
         pass
-    
+
     @abstractmethod
     def get_edge(self, source_uid: str, target_uid: str) -> EdgeData:
         """Retrieves an edge between two entities."""
@@ -62,8 +62,19 @@ class NoSQLKnowledgeGraph(ABC):
         pass
 
     @abstractmethod
-    def get_louvain_communities(self) -> List[CommunityData]:
+    def get_louvain_communities(self) -> List[set[str]]:
         """Computes and returns all Louvain communities for the given network.
+        https://www.nature.com/articles/s41598-019-41695-z
+
+        Sample Output:
+        [{'"2023 NOBEL PEACE PRIZE"'}, {'"ANDREI SAKHAROV PRIZE"'},
+        {'"ANDREI SAKHAROV"'}, {'"ENCIEH ERFANI"', '"INSTITUTE FOR ADVANCED STUDIES IN BASIC SCIENCES IN ZANJAN, IRAN"'}]
+        """
+        pass
+
+    @abstractmethod
+    def store_communities(self, communities: List[CommunityData]) -> None:
+        """Takes valid graph community data and stores it in the database.
         https://www.nature.com/articles/s41598-019-41695-z
         """
         pass
@@ -72,7 +83,7 @@ class NoSQLKnowledgeGraph(ABC):
     def _generate_edge_uid(self, source_uid: str, target_uid: str) -> str:
         """Generates Edge uid for the network based on source and target nod uid"""
         return ""
-    
+
     @abstractmethod
     def visualize_graph(self, filename: str) -> None:
         """Visualizes the provided networkx graph using matplotlib."""
