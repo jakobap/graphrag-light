@@ -338,7 +338,7 @@ class GraphExtractor:
     def generate_comm_reports(self, kg: NoSQLKnowledgeGraph) -> None:
 
         llm = LLMSession(system_message=prompts.COMMUNITY_REPORT_SYSTEM,
-                model_name="gemini-1.5-pro-001")
+                         model_name="gemini-1.5-pro-001")
 
         comms = kg.get_louvain_communities()
 
@@ -348,18 +348,18 @@ class GraphExtractor:
             for n in c:
                 node = kg.get_node(n)
                 node_edges_to = [{"edge_source_entity": kg.get_edge(source_uid=node.node_uid,
-                                                                  target_uid=e),
-                                   "edge_target_entity": kg.get_edge(source_uid=node.node_uid,
-                                                                  target_uid=e),
-                                   "edge_description": kg.get_edge(source_uid=node.node_uid,
+                                                                    target_uid=e),
+                                  "edge_target_entity": kg.get_edge(source_uid=node.node_uid,
+                                                                    target_uid=e),
+                                  "edge_description": kg.get_edge(source_uid=node.node_uid,
                                                                   target_uid=e)} for e in node.edges_to]
-                
+
                 node_edges_from = [{"edge_source_entity": kg.get_edge(source_uid=e,
-                                                                  target_uid=node.node_uid),
+                                                                      target_uid=node.node_uid),
                                    "edge_target_entity": kg.get_edge(source_uid=e,
-                                                                  target_uid=node.node_uid),
-                                   "edge_description": kg.get_edge(source_uid=e,
-                                                                  target_uid=node.node_uid)} for e in node.edges_from]
+                                                                     target_uid=node.node_uid),
+                                    "edge_description": kg.get_edge(source_uid=e,
+                                                                    target_uid=node.node_uid)} for e in node.edges_from]
 
                 node_data = {"entity_id": node.node_title,
                              "entity_type": node.node_type,
@@ -369,11 +369,64 @@ class GraphExtractor:
                 comm_edges.extend(node_edges_to)
                 comm_edges.extend(node_edges_from)
 
+            response_schema = {
+                "type": "object",
+                "properties": {
+                    "title": {
+                        "type": "string"
+                    },
+                    "summary": {
+                        "type": "string"
+                    },
+                    "rating": {
+                        "type": "int"
+                    },
+                    "rating_explanation": {
+                        "type": "string"
+                    },
+                    "findings": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "summary": {
+                                    "type": "string"
+                                },
+                                "explanation": {
+                                    "type": "string"
+                                }
+                            },
+                            # Ensure both fields are present in each finding
+                            "required": ["summary", "explanation"]
+                        }
+                    }
+                },
+                # List required fields at the top level
+                "required": ["title", "summary", "rating", "rating_explanation", "findings"]
+            }
+
             comm_report = llm.generate(client_query_string=prompts.COMMUNITY_REPORT_QUERY.format(
                 entities=comm_nodes,
-                relationships=comm_edges))
-            
-            print(f"Community Report for {c}: {comm_report}")
+                relationships=comm_edges,
+                response_mime_type="application/json",
+                response_schema=response_schema
+            ))
+
+            print(f"######## {c}:")
+
+            comm_report_dict = self.llm.parse_json_response(comm_report)
+
+            if comm_report_dict == {}:
+                comm_data = {}
+            else:
+                comm_data = data_model.CommunityData(title=comm_report_dict["title"],
+                                                    summary=comm_report_dict["summary"],
+                                                    rating=comm_report_dict["rating"],
+                                                    rating_explanation=comm_report_dict["rating_explanation"],
+                                                    findings=comm_report_dict["findings"],
+                                                    community_nodes=c)
+
+            print(f"Community Report for {c}: {comm_data}")
 
         return None
 
