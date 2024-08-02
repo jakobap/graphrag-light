@@ -391,6 +391,12 @@ class FirestoreKG(NoSQLKnowledgeGraph):
         else:
             raise ValueError("Error: NetworkX graph is not initialized. Call build_networkx() first.")
     
+    def store_communities(self, communities: List[CommunityData]) -> None:
+        """Takes valid graph community data and stores it in the database.
+        https://www.nature.com/articles/s41598-019-41695-z
+        """
+        pass
+
     def _generate_edge_uid(self, source_uid: str, target_uid: str):
         return f"{source_uid}_to_{target_uid}"
 
