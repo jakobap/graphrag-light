@@ -4,13 +4,16 @@ from nosql_kg.data_model import NodeData, EdgeData, CommunityData
 
 from abc import ABC, abstractmethod
 from typing import Dict, List
+import datetime 
 
 import networkx as nx
+import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
 
 
 class NoSQLKnowledgeGraph(ABC):
     """
-    Base Class for storing and interacting with the KG and manages data model.  
+    Base Class for storing and interacting with the KG and manages data model.
     """
     networkx: nx.Graph | None = None  # networkx representation of graph in nosqldb
 
@@ -62,17 +65,6 @@ class NoSQLKnowledgeGraph(ABC):
         pass
 
     @abstractmethod
-    def get_louvain_communities(self) -> List[set[str]]:
-        """Computes and returns all Louvain communities for the given network.
-        https://www.nature.com/articles/s41598-019-41695-z
-
-        Sample Output:
-        [{'"2023 NOBEL PEACE PRIZE"'}, {'"ANDREI SAKHAROV PRIZE"'},
-        {'"ANDREI SAKHAROV"'}, {'"ENCIEH ERFANI"', '"INSTITUTE FOR ADVANCED STUDIES IN BASIC SCIENCES IN ZANJAN, IRAN"'}]
-        """
-        pass
-
-    @abstractmethod
     def store_community(self, community: CommunityData) -> None:
         """Takes valid graph community data and upserts the database with it.
         https://www.nature.com/articles/s41598-019-41695-z
@@ -84,10 +76,77 @@ class NoSQLKnowledgeGraph(ABC):
         """Generates Edge uid for the network based on source and target nod uid"""
         return ""
 
-    @abstractmethod
-    def visualize_graph(self, filename: str) -> None:
-        """Visualizes the provided networkx graph using matplotlib."""
-        pass
+    def visualize_graph(self, filename: str= f"graph_{datetime.datetime.now()}.png") -> None:
+        """Visualizes the provided networkx graph using matplotlib.
+
+        Args:
+            graph (nx.Graph): The graph to visualize.
+        """
+        self.build_networkx()
+        
+        if self.networkx is not None:
+            # Create a larger figure for better visualization
+            plt.figure(figsize=(12, 12))
+
+            # Use a spring layout for a more visually appealing arrangement
+            pos = nx.spring_layout(self.networkx, k=0.3, iterations=50)
+
+            # Draw nodes with different colors based on entity type
+            entity_types = set(data["node_type"] for _, data in self.networkx.nodes(data=True))
+            color_map = plt.cm.get_cmap("tab10", len(entity_types))
+            for i, entity_type in enumerate(entity_types):
+                nodes = [n for n, d in self.networkx.nodes(
+                    data=True) if d["node_type"] == entity_type]
+                nx.draw_networkx_nodes(
+                    self.networkx,
+                    pos,
+                    nodelist=nodes,
+                    node_color=[color_map(i)],  # type: ignore
+                    label=entity_type,
+                    node_size=[10 + 50 * self.networkx.degree(n) for n in nodes] # type: ignore
+                )
+
+            # Draw edges with labels
+            nx.draw_networkx_edges(self.networkx, pos, width=0.5, alpha=0.5)
+            # edge_labels = nx.get_edge_attributes(graph, "description")
+            # nx.draw_networkx_edge_labels(graph, pos, edge_labels=edge_labels, font_size=6)
+
+            # Add node labels with descriptions
+            node_labels = {
+                node: node
+                for node, data in self.networkx.nodes(data=True)
+            }
+            nx.draw_networkx_labels(self.networkx, pos, labels=node_labels, font_size=8)
+
+            plt.title("Extracted Knowledge Graph")
+            plt.axis("off")  # Turn off the axis
+
+            # Add a legend for node colors
+            plt.legend(handles=[Line2D([0], [0], marker='o', color='w', label=entity_type,
+                    markersize=10, markerfacecolor=color_map(i)) for i, entity_type in enumerate(entity_types)])
+            
+            plt.savefig(filename)
+        
+        else:
+            raise ValueError("Error: NetworkX graph is not initialized. Call build_networkx() first.")
+
+    def get_louvain_communities(self) -> list:
+        """Computes and returns all Louvain communities for the given network.
+        https://www.nature.com/articles/s41598-019-41695-z
+
+        Sample Output:
+        [{'"2023 NOBEL PEACE PRIZE"'}, {'"ANDREI SAKHAROV PRIZE"'},
+        {'"ANDREI SAKHAROV"'}, {'"ENCIEH ERFANI"', '"INSTITUTE FOR ADVANCED STUDIES IN BASIC SCIENCES IN ZANJAN, IRAN"'}]
+        """
+        # 1. Build (or update) the NetworkX graph
+        self.build_networkx()
+
+        # 2. Apply Louvain algorithm
+        if self.networkx is not None:
+            louvain_comm_list = nx.algorithms.community.louvain_communities(self.networkx)
+            return louvain_comm_list # type: ignore
+        else:
+            raise ValueError("Error: NetworkX graph is not initialized. Call build_networkx() first.")
 
 
 if __name__ == "__main__":
