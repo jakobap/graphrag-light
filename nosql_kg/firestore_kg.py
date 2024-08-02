@@ -391,11 +391,27 @@ class FirestoreKG(NoSQLKnowledgeGraph):
         else:
             raise ValueError("Error: NetworkX graph is not initialized. Call build_networkx() first.")
     
-    def store_communities(self, communities: List[CommunityData]) -> None:
-        """Takes valid graph community data and stores it in the database.
+    def store_community(self, community: CommunityData) -> None:
+        """Takes valid graph community data and upserts the database with it.
         https://www.nature.com/articles/s41598-019-41695-z
         """
-        pass
+        # Convert CommunityData to a dictionary for Firestore storage
+        try:
+            community_data_dict = community.__dict__
+        except TypeError as e:
+            raise ValueError(
+                f"Error: Provided community data for community '{community.title}' cannot be converted to a dictionary. Details: {e}"
+            ) from e
+
+        # Get a reference to the document
+        doc_ref = self.db.collection(self.community_coll_id).document(community.title)
+
+        # Use set with merge=True to upsert the document
+        try:
+            doc_ref.set(community_data_dict, merge=True)
+        except Exception as e:
+            raise Exception(f"Error storing community data: {e}") from e
+
 
     def _generate_edge_uid(self, source_uid: str, target_uid: str):
         return f"{source_uid}_to_{target_uid}"
