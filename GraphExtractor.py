@@ -172,7 +172,7 @@ class GraphExtractor:
                             node_degree=0,
                         )
 
-                        fskg.add_node(node_uid=entity_name,
+                        fskg.add_node(node_uid=source,
                                       node_data=node_data)
 
                     if not fskg.node_exist(target):
@@ -185,7 +185,7 @@ class GraphExtractor:
                             node_degree=0,
                         )
 
-                        fskg.add_node(node_uid=entity_name,
+                        fskg.add_node(node_uid=target,
                                       node_data=node_data)
 
                     if fskg.edge_exist(source, target):
@@ -333,7 +333,10 @@ class GraphExtractor:
 
         result = html.unescape(input.strip())
         # https://stackoverflow.com/questions/4324790/removing-control-characters-from-a-string-in-python
-        return re.sub(r"[\x00-\x1f\x7f-\x9f]", "", result)
+        result = re.sub(r"[\x00-\x1f\x7f-\x9f]", "", result)
+        # Remove double quotes if they exist
+        result = result.replace('"', '')
+        return result
 
     def generate_comm_reports(self, kg: NoSQLKnowledgeGraph) -> None:
 
@@ -412,12 +415,15 @@ class GraphExtractor:
                 response_schema=response_schema
             ))
 
-            print(f"######## {c}:")
-
             comm_report_dict = self.llm.parse_json_response(comm_report)
 
             if comm_report_dict == {}:
-                comm_data = {}
+                comm_data = data_model.CommunityData(title=str(c),
+                                    summary="",
+                                    rating=0,
+                                    rating_explanation="",
+                                    findings=[{}],
+                                    community_nodes=c)
             else:
                 comm_data = data_model.CommunityData(title=comm_report_dict["title"],
                                                     summary=comm_report_dict["summary"],
@@ -425,8 +431,8 @@ class GraphExtractor:
                                                     rating_explanation=comm_report_dict["rating_explanation"],
                                                     findings=comm_report_dict["findings"],
                                                     community_nodes=c)
-
-            print(f"Community Report for {c}: {comm_data}")
+                
+                fskg.store_community(community=comm_data)
 
         return None
 
@@ -454,17 +460,17 @@ if __name__ == "__main__":
     ingestion = IngestionSession()
     extractor = GraphExtractor(graph_db=fskg)
 
-    # document_string = ingestion(
-    #     new_file_name="./pdf_articles/Winners of Future Hamburg Award 2023 announced _ Hamburg News.pdf", ingest_local_file=True
-    # )
+    document_string = ingestion(
+        new_file_name="./pdf_articles/Winners of Future Hamburg Award 2023 announced _ Hamburg News.pdf", ingest_local_file=True
+    )
+    extracted_graph = extractor(text_input=document_string, max_extr_rounds=1)
+    
+    document_string = ingestion(
+        new_file_name="./pdf_articles/Physicist Narges Mohammadi awarded Nobe... for human-rights work – Physics World.pdf", ingest_local_file=True
+    )
+    extracted_graph = extractor(text_input=document_string, max_extr_rounds=1)
 
-    # document_string = ingestion(
-    #     new_file_name="./pdf_articles/Physicist Narges Mohammadi awarded Nobe... for human-rights work – Physics World.pdf", ingest_local_file=True
-    # )
-
-    # extracted_graph = extractor(text_input=document_string, max_extr_rounds=1)
-
-    # fskg.visualize_graph("visualized.png")
+    fskg.visualize_graph("visualized.png")
 
     extractor.generate_comm_reports(kg=fskg)
 
