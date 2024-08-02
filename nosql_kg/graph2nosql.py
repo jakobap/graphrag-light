@@ -73,8 +73,8 @@ class NoSQLKnowledgeGraph(ABC):
         pass
 
     @abstractmethod
-    def store_communities(self, communities: List[CommunityData]) -> None:
-        """Takes valid graph community data and stores it in the database.
+    def store_community(self, community: CommunityData) -> None:
+        """Takes valid graph community data and upserts the database with it.
         https://www.nature.com/articles/s41598-019-41695-z
         """
         pass
