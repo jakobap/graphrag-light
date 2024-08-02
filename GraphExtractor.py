@@ -435,6 +435,31 @@ class GraphExtractor:
                 fskg.store_community(community=comm_data)
 
         return None
+ 
+    def update_node_embeddings(self) -> None: 
+
+        node_embeddings = self.graph_db.get_node2vec_embeddings()
+
+        for node_uid in node_embeddings.nodes:
+            # Get the embedding for the current node
+            index = node_embeddings.nodes.index(node_uid)
+            embedding = node_embeddings.embeddings[index].tolist() 
+            
+            try:
+                # Fetch the existing node data
+                node_data = self.graph_db.get_node(node_uid)
+                
+                # Update the embedding
+                node_data.embedding = embedding
+
+                # Update the node in Firestore
+                self.graph_db.update_node(node_uid, node_data)
+
+            except KeyError:
+                # Handle the case where the node doesn't exist 
+                print(f"Warning: Node '{node_uid}' not found in Firestore. Skipping embedding update.")
+
+        return None
 
 
 if __name__ == "__main__":
@@ -460,20 +485,20 @@ if __name__ == "__main__":
     ingestion = IngestionSession()
     extractor = GraphExtractor(graph_db=fskg)
 
-    document_string = ingestion(
-        new_file_name="./pdf_articles/Winners of Future Hamburg Award 2023 announced _ Hamburg News.pdf", ingest_local_file=True
-    )
-    extracted_graph = extractor(text_input=document_string, max_extr_rounds=1)
+    # document_string = ingestion(
+    #     new_file_name="./pdf_articles/Winners of Future Hamburg Award 2023 announced _ Hamburg News.pdf", ingest_local_file=True
+    # )
+    # extracted_graph = extractor(text_input=document_string, max_extr_rounds=1)
     
-    document_string = ingestion(
-        new_file_name="./pdf_articles/Physicist Narges Mohammadi awarded Nobe... for human-rights work – Physics World.pdf", ingest_local_file=True
-    )
-    extracted_graph = extractor(text_input=document_string, max_extr_rounds=1)
+    # document_string = ingestion(
+    #     new_file_name="./pdf_articles/Physicist Narges Mohammadi awarded Nobe... for human-rights work – Physics World.pdf", ingest_local_file=True
+    # )
+    # extracted_graph = extractor(text_input=document_string, max_extr_rounds=1)
 
-    fskg.visualize_graph("visualized.png")
+    # fskg.visualize_graph("visualized.png")
 
-    extractor.generate_comm_reports(kg=fskg)
+    # extractor.generate_comm_reports(kg=fskg)
 
-    # extractor.visualize_graph(extracted_graph)
+    extractor.update_node_embeddings()
 
     print("Hello World!")
