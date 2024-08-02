@@ -27,9 +27,12 @@ class NodeData:
 
 @dataclass
 class CommunityData:
-    document_id: str # identifier for source knowlede base document for this entity
-    community_uid: str # community identifier
-    community_nodes: Tuple[str, ...] = field(default_factory=tuple) # list of node_uid belonging to community
-    community_title: str | None = None # title of comm, None if not yet computed
-    community_description: str | None = None # description of comm, None if not yet computed
+    title: str # title of comm, None if not yet computed
+    community_nodes: set[str] = field(default_factory=set) # list of node_uid belonging to community
+    summary: str | None = None # description of comm, None if not yet computed
+    document_id: str | None = None # identifier for source knowlede base document for this entity
+    community_uid: str | None = None # community identifier
     community_embedding: Tuple[float, ...] = field(default_factory=tuple) # text embedding representing community
+    rating: int | None = None
+    rating_explanation: str | None = None
+    findings: list[dict] | None = None
