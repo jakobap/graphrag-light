@@ -20,6 +20,7 @@ from matplotlib.pyplot import hist
 import vertexai
 from vertexai.generative_models import GenerativeModel, Part, FinishReason
 import vertexai.preview.generative_models as generative_models
+from vertexai.language_models import TextEmbeddingInput, TextEmbeddingModel
 import json
 
 import prompts
@@ -99,6 +100,18 @@ class LLMSession:
             print(f"Error decoding JSON: {e}")
             return {}
 
+    def embed_text(self, text: str,
+                   task: str = "RETRIEVAL_DOCUMENT",
+                   model_name: str = "text-embedding-004",
+                   dimensionality: Optional[int] = 768) -> List[float]:
+
+        """Embeds texts with a pre-trained, foundational model."""
+
+        model = TextEmbeddingModel.from_pretrained(model_name)
+        input = TextEmbeddingInput(text, task)
+        # kwargs = dict(output_dimensionality=dimensionality) if dimensionality else {}
+        embedding = model.get_embeddings(texts=[input], output_dimensionality=dimensionality)
+        return embedding
 
 if __name__ == "__main__":
     prompt = "Which is the city with the most bridges?"
@@ -138,8 +151,13 @@ if __name__ == "__main__":
     # },
     # }
 
+    emb = llm.embed_text(text="Hello World!")
+    print(emb)
+    print(len(emb[0].values))
 
-    response = llm.generate(client_query_string=graph_extraction_input, )
-    print(response)
+    # response = llm.generate(client_query_string=graph_extraction_input, )
+    # print(response)
+
+    print("Hello World!")
 
 
