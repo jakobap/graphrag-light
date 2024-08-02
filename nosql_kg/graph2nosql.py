@@ -164,7 +164,7 @@ class NoSQLKnowledgeGraph(ABC):
 
     def get_node2vec_embeddings(
         self,
-        dimensions: int = 1536,
+        dimensions: int = 768,
         num_walks: int = 10,
         walk_length: int = 40,
         window_size: int = 2,
