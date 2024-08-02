@@ -1,12 +1,14 @@
 from matplotlib.pylab import source
-from nosql_kg.graph2nosql import NoSQLKnowledgeGraph
-from nosql_kg.data_model import NodeData, EdgeData, CommunityData
+from .graph2nosql import NoSQLKnowledgeGraph
+from .data_model import NodeData, EdgeData, CommunityData
 
 from typing import Dict, List
 import datetime
 
 import firebase_admin
 from firebase_admin import firestore
+from google.cloud.firestore_v1.base_vector_query import DistanceMeasure
+from google.cloud.firestore_v1.vector import Vector
 import google.auth
 
 import networkx as nx
@@ -423,12 +425,29 @@ class FirestoreKG(NoSQLKnowledgeGraph):
         else:
             return False
 
+    def get_nearest_neighbors(self, query_vec: list[float]) -> List[dict]:
+        """
+        Implements nearest neighbor search based on Firestore embedding index:
+        https://firebase.google.com/docs/firestore/vector-search
+        """
+
+        collection = self.db.collection(self.node_coll_id)
+
+        # Requires vector index
+        nn = collection.find_nearest(
+        vector_field="embedding",
+        query_vector=Vector(query_vec),
+        distance_measure=DistanceMeasure.EUCLIDEAN,
+        limit=5).get()
+    
+        return [n.to_dict() for n in nn]
 
 if __name__ == "__main__":
     import os
     from dotenv import dotenv_values
 
     os.chdir(os.path.dirname(os.path.abspath(__file__))) 
+    
 
     secrets = dotenv_values(".env")
 
@@ -447,60 +466,5 @@ if __name__ == "__main__":
         edges_collection_id=edges_coll_id,
         community_collection_id=community_coll_id
     )
-
-    # Test get_node method
-    node_info = fskg.get_node(node_uid="test_node")
-
-    # Test add_node method
-    test_node_data = NodeData(
-        node_uid="test_node_add",
-        node_title="Added Test Node",
-        node_type="Added Test Node Type",
-        node_description="This is a test node",
-        node_degree=0,
-        document_id="test_doc_id",
-        edges_to=["test_node"],
-        edges_from=[],
-        embedding=[0.1, 0.2, 0.3], 
-    )
-
-    try:
-        fskg.add_node(node_uid="test_node_add", node_data=test_node_data)
-        print("Test add_node: PASSED")
-    except Exception as e:
-        print(f"Test add_node: FAILED - {e}")
-
-    # Test update_node method
-    test_updated_node_data = NodeData(
-        node_uid="test_node_add",
-        node_title="Added Test Node",
-        node_type="Added Test Node Type",
-        node_description="This is the updated test node description",
-        node_degree=0,
-        document_id="test_doc_id",
-        edges_to=["test_node"],
-        edges_from=[],
-        embedding=[0.1, 0.2, 0.3], 
-    )
-
-    try:
-        fskg.update_node(node_uid="test_node_add", node_data=test_updated_node_data)
-        print("Test update_node: PASSED")
-    except Exception as e:
-        print(f"Test update_node: FAILED - {e}")
-
-    # Get both nodes to check updates
-    node_info = fskg.get_node(node_uid="test_node")
-    node_info = fskg.get_node(node_uid="test_node_add")
-
-    # Test remove_node method
-    try:
-        fskg.remove_node(node_uid="test_node_add")
-        print("Test remove_node: PASSED")
-    except Exception as e:
-        print(f"Test remove_node: FAILED - {e}")
-
-    # Get both nodes to deletion & corresponding edge update in remaining
-    node_info = fskg.get_node(node_uid="test_node")
 
     print("Hello World!")
