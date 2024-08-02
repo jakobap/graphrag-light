@@ -504,10 +504,18 @@ if __name__ == "__main__":
 
     node_embeddings = fskg.get_node2vec_embeddings()
 
-    narges_index = node_embeddings.nodes.index('NARGES MOHAMMADI')
+    llm = LLMSession(
+        system_message="",
+        model_name="gemini-1.5-pro-001"
+    )
 
-    nn = fskg.get_nearest_neighbors(node_embeddings.embeddings[narges_index])
+    emb = llm.embed_text(text='who was the nobel peace prize winner 2023', dimensionality=768)
 
-    print(nn)
+    # narges_index = node_embeddings.nodes.index('NARGES MOHAMMADI')
+
+    nn = fskg.get_nearest_neighbors(emb[0].values)
+
+    for i in range(4):
+        print(nn[i]["node_uid"])
 
     print("Hello World!")
