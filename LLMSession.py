@@ -20,11 +20,12 @@ from matplotlib.pyplot import hist
 import vertexai
 from vertexai.generative_models import GenerativeModel, Part, FinishReason
 import vertexai.preview.generative_models as generative_models
+import json
 
 import prompts
 import sample_txt
 
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 
 from langfuse.decorators import observe
 
@@ -44,7 +45,9 @@ class LLMSession:
         client_query_string: str,
         max_output_tokens: int = 8192,
         temperature: float = 0.2,
-        top_p: float = 0.5
+        top_p: float = 0.5,
+        response_mime_type: Optional[str] = None,
+        response_schema: Optional[Dict[str, Any]] = None
     ) -> str:
 
         response = self.model.generate_content(
@@ -52,7 +55,9 @@ class LLMSession:
             generation_config={
                 "max_output_tokens": max_output_tokens,
                 "temperature": temperature,
-                "top_p": top_p
+                "top_p": top_p,
+                "response_mime_type": response_mime_type,
+                "response_schema": response_schema
             },
             stream=False
         )
@@ -63,12 +68,16 @@ class LLMSession:
                       client_query_string: str,
                       max_output_tokens: int = 8192,
                       temperature: float = 0.2,
-                      top_p: float = 0.5) -> str:
-
+                      top_p: float = 0.5,
+                      response_mime_type: Optional[str] = None,
+                      response_schema: Optional[Dict[str, Any]] = None) -> str:
+        
         generation_config = {
             "max_output_tokens": max_output_tokens,
             "temperature": temperature,
-            "top_p": top_p
+            "top_p": top_p,
+            "response_mime_type": response_mime_type,
+            "response_schema": response_schema
         }
 
         response = self.model_chat.send_message(
@@ -76,6 +85,19 @@ class LLMSession:
             stream=False,
             generation_config=generation_config)
         return response.text  # type: ignore
+
+    def parse_json_response(self, res:str) ->  dict:
+        # Remove the ```json\n and \n``` delimiters
+        res = res.replace('```json\n', '').replace('\n```', '')
+
+        # Parse the JSON response
+        try:
+            res_dict = json.loads(res) 
+            return res_dict
+        
+        except json.JSONDecodeError as e:
+            print(f"Error decoding JSON: {e}")
+            return {}
 
 
 if __name__ == "__main__":
@@ -102,5 +124,22 @@ if __name__ == "__main__":
         system_message=graph_extraction_system,
         model_name="gemini-1.5-pro-001"
     )
+
+    # response_schema = {
+    # "type": "array",
+    # "items": {
+    #     "type": "object",
+    #     "properties": {
+    #         "recipe_name": {
+    #             "type": "string",
+    #         },
+    #     },
+    #     "required": ["recipe_name"],
+    # },
+    # }
+
+
     response = llm.generate(client_query_string=graph_extraction_input, )
     print(response)
+
+
