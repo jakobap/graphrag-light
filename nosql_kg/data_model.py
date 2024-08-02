@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
 from typing import Tuple
+import numpy as np
 
 
 @dataclass
@@ -36,3 +37,11 @@ class CommunityData:
     rating: int | None = None
     rating_explanation: str | None = None
     findings: list[dict] | None = None
+
+
+@dataclass
+class NodeEmbeddings:
+    """Node embeddings class definition."""
+
+    nodes: list[str]
+    embeddings: np.ndarray
