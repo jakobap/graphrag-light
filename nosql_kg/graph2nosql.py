@@ -1,21 +1,23 @@
 from re import A
 import networkx
-from nosql_kg.data_model import NodeData, EdgeData, CommunityData
+from nosql_kg.data_model import NodeData, EdgeData, CommunityData, NodeEmbeddings
 
 from abc import ABC, abstractmethod
 from typing import Dict, List
-import datetime 
+import datetime
 
 import networkx as nx
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
+import graspologic as gc
 
 
 class NoSQLKnowledgeGraph(ABC):
     """
     Base Class for storing and interacting with the KG and manages data model.
     """
-    networkx: nx.Graph | None = None  # networkx representation of graph in nosqldb
+    networkx: nx.Graph | nx.DiGraph = nx.Graph(
+    )  # networkx representation of graph in nosqldb
 
     @abstractmethod
     def add_node(self, node_uid: str, node_data: NodeData) -> None:
@@ -76,14 +78,14 @@ class NoSQLKnowledgeGraph(ABC):
         """Generates Edge uid for the network based on source and target nod uid"""
         return ""
 
-    def visualize_graph(self, filename: str= f"graph_{datetime.datetime.now()}.png") -> None:
+    def visualize_graph(self, filename: str = f"graph_{datetime.datetime.now()}.png") -> None:
         """Visualizes the provided networkx graph using matplotlib.
 
         Args:
             graph (nx.Graph): The graph to visualize.
         """
         self.build_networkx()
-        
+
         if self.networkx is not None:
             # Create a larger figure for better visualization
             plt.figure(figsize=(12, 12))
@@ -92,7 +94,8 @@ class NoSQLKnowledgeGraph(ABC):
             pos = nx.spring_layout(self.networkx, k=0.3, iterations=50)
 
             # Draw nodes with different colors based on entity type
-            entity_types = set(data["node_type"] for _, data in self.networkx.nodes(data=True))
+            entity_types = set(data["node_type"]
+                               for _, data in self.networkx.nodes(data=True))
             color_map = plt.cm.get_cmap("tab10", len(entity_types))
             for i, entity_type in enumerate(entity_types):
                 nodes = [n for n, d in self.networkx.nodes(
@@ -103,7 +106,9 @@ class NoSQLKnowledgeGraph(ABC):
                     nodelist=nodes,
                     node_color=[color_map(i)],  # type: ignore
                     label=entity_type,
-                    node_size=[10 + 50 * self.networkx.degree(n) for n in nodes] # type: ignore
+                    # type: ignore
+                    node_size=[
+                        10 + 50 * self.networkx.degree(n) for n in nodes]
                 )
 
             # Draw edges with labels
@@ -116,19 +121,21 @@ class NoSQLKnowledgeGraph(ABC):
                 node: node
                 for node, data in self.networkx.nodes(data=True)
             }
-            nx.draw_networkx_labels(self.networkx, pos, labels=node_labels, font_size=8)
+            nx.draw_networkx_labels(
+                self.networkx, pos, labels=node_labels, font_size=8)
 
             plt.title("Extracted Knowledge Graph")
             plt.axis("off")  # Turn off the axis
 
             # Add a legend for node colors
             plt.legend(handles=[Line2D([0], [0], marker='o', color='w', label=entity_type,
-                    markersize=10, markerfacecolor=color_map(i)) for i, entity_type in enumerate(entity_types)])
-            
+                                       markersize=10, markerfacecolor=color_map(i)) for i, entity_type in enumerate(entity_types)])
+
             plt.savefig(filename)
-        
+
         else:
-            raise ValueError("Error: NetworkX graph is not initialized. Call build_networkx() first.")
+            raise ValueError(
+                "Error: NetworkX graph is not initialized. Call build_networkx() first.")
 
     def get_louvain_communities(self) -> list:
         """Computes and returns all Louvain communities for the given network.
@@ -143,10 +150,34 @@ class NoSQLKnowledgeGraph(ABC):
 
         # 2. Apply Louvain algorithm
         if self.networkx is not None:
-            louvain_comm_list = nx.algorithms.community.louvain_communities(self.networkx)
-            return louvain_comm_list # type: ignore
+            louvain_comm_list = nx.algorithms.community.louvain_communities(
+                self.networkx)
+            return louvain_comm_list  # type: ignore
         else:
-            raise ValueError("Error: NetworkX graph is not initialized. Call build_networkx() first.")
+            raise ValueError(
+                "Error: NetworkX graph is not initialized. Call build_networkx() first.")
+
+    def get_node2vec_embeddings(
+        self,
+        dimensions: int = 1536,
+        num_walks: int = 10,
+        walk_length: int = 40,
+        window_size: int = 2,
+        iterations: int = 3,
+        random_seed: int = 69
+        ) -> NodeEmbeddings:
+        """Generate node embeddings using Node2Vec."""
+        # generate embedding
+        lcc_tensors = gc.embed.node2vec_embed(  # type: ignore
+            graph=self.networkx,
+            dimensions=dimensions,
+            window_size=window_size,
+            iterations=iterations,
+            num_walks=num_walks,
+            walk_length=walk_length,
+            random_seed=random_seed,
+        )
+        return NodeEmbeddings(embeddings=lcc_tensors[0], nodes=lcc_tensors[1])
 
 
 if __name__ == "__main__":
