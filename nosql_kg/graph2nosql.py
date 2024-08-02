@@ -78,6 +78,11 @@ class NoSQLKnowledgeGraph(ABC):
         """Generates Edge uid for the network based on source and target nod uid"""
         return ""
 
+    @abstractmethod
+    def get_nearest_neighbors(self, query_vec) -> List[str]:
+        """Implements nearest neighbor search based on nosql db index."""
+        pass
+
     def visualize_graph(self, filename: str = f"graph_{datetime.datetime.now()}.png") -> None:
         """Visualizes the provided networkx graph using matplotlib.
 
