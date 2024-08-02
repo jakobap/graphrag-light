@@ -12,6 +12,7 @@ from nosql_kg.firestore_kg import FirestoreKG
 from nosql_kg import data_model
 
 import networkx as nx
+from google.cloud.firestore_v1.vector import Vector
 
 import re
 import numbers
@@ -92,8 +93,8 @@ class GraphExtractor:
     def _process_fskg(
         self,
         results: dict[int, str],
-        join_descriptions: bool = True,
-    ) -> None:
+        join_descriptions: bool = True
+        ) -> None:
         """Parse the result string to create an undirected unipartite graph.
 
         Args:
@@ -216,8 +217,8 @@ class GraphExtractor:
     def _process_results(
         self,
         results: dict[int, str],
-        join_descriptions: bool = True,
-    ) -> nx.Graph:
+        join_descriptions: bool = True
+        ) -> nx.Graph:
         """Parse the result string to create an undirected unipartite graph.
 
         Args:
@@ -443,7 +444,7 @@ class GraphExtractor:
         for node_uid in node_embeddings.nodes:
             # Get the embedding for the current node
             index = node_embeddings.nodes.index(node_uid)
-            embedding = node_embeddings.embeddings[index].tolist() 
+            embedding = Vector( node_embeddings.embeddings[index].tolist() )
             
             try:
                 # Fetch the existing node data
@@ -500,5 +501,13 @@ if __name__ == "__main__":
     # extractor.generate_comm_reports(kg=fskg)
 
     extractor.update_node_embeddings()
+
+    node_embeddings = fskg.get_node2vec_embeddings()
+
+    narges_index = node_embeddings.nodes.index('NARGES MOHAMMADI')
+
+    nn = fskg.get_nearest_neighbors(node_embeddings.embeddings[narges_index])
+
+    print(nn)
 
     print("Hello World!")
