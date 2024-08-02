@@ -108,7 +108,7 @@ class NoSQLKnowledgeGraph(ABC):
                     label=entity_type,
                     # type: ignore
                     node_size=[
-                        10 + 50 * self.networkx.degree(n) for n in nodes]
+                        10 + 50 * self.networkx.degree(n) for n in nodes] # type: ignore
                 )
 
             # Draw edges with labels
