@@ -167,6 +167,10 @@ class NoSQLKnowledgeGraph(ABC):
         random_seed: int = 69
         ) -> NodeEmbeddings:
         """Generate node embeddings using Node2Vec."""
+        
+        # update networkx representation of graph
+        self.build_networkx()
+        
         # generate embedding
         lcc_tensors = gc.embed.node2vec_embed(  # type: ignore
             graph=self.networkx,
