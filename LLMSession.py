@@ -16,7 +16,6 @@ from optparse import Option
 from dotenv import dotenv_values
 import base64
 from google.cloud import aiplatform
-from matplotlib.pyplot import hist
 import vertexai
 from vertexai.generative_models import GenerativeModel, Part, FinishReason
 import vertexai.preview.generative_models as generative_models
