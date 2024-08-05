@@ -3,6 +3,7 @@ from pyparsing import abstractmethod
 from typing import Any
 import json
 from dotenv import dotenv_values
+import time
 
 import google.auth
 from google.cloud import pubsub_v1
@@ -17,12 +18,12 @@ class CommunityAnswerRequest:
     Dataclass describing a Workload request made to the message queue for async generation of community based intermediate user query answers.
     """
 
-    community_report: dict
+    community_report: data_model.CommunityData
     user_query: str
 
     def __to_dict__(self):
         return {
-            "community_report": self.community_report,
+            "community_report": self.community_report.__to_dict__(),
             "user_query": self.user_query
         }
 
@@ -60,7 +61,7 @@ class KGraphGlobalQuery:
         pass
 
     @abstractmethod
-    def _check_shared_state(self):
+    def _check_shared_state(self, user_query:str, max_attempts: int = 10, sleep_time: int = 2):
         # method to check shared state for query result
         # method to query shared state for intermediate responses for one given user query
         pass
@@ -102,7 +103,7 @@ class GlobalQueryGCP(KGraphGlobalQuery):
         print(mes)
         # print(json.loads(mes))
         future = publisher.publish(
-            topic_path, json.dumps(message).encode("utf-8"))
+            topic_path, mes.encode("utf-8"))
 
         # (Optional) Wait for the publish future to resolve
         message_id = future.result()
@@ -117,8 +118,28 @@ class GlobalQueryGCP(KGraphGlobalQuery):
         docs = self.fskg.db.collection(comm_coll)
         return [data_model.CommunityData.__from_dict__(doc.to_dict()) for doc in docs.stream()]
 
-    def check_shared_state(self):
-        pass
+    def _check_shared_state(self, user_query:str, max_attempts: int = 5, sleep_time: int = 5) -> dict:
+        """
+        Periodically checks for the existence of a document with user_query as id. 
+
+        Args:
+            user_query (str): The ID of the document to look for.
+            max_attempts (int, optional): Maximum number of attempts to check. Defaults to 10.
+            sleep_time (int, optional): Time to sleep between attempts in seconds. Defaults to 2.
+
+        Returns:
+            Dict: The document data if found, otherwise raises timeout error.
+        """
+        for attempt in range(max_attempts):
+            doc_ref = self.fskg.db.collection(str(self.secrets["INTERMEDIATE_ANSWER_COLLECTION"])).document(user_query)
+            doc_snapshot = doc_ref.get()
+            if doc_snapshot.exists:
+                return doc_snapshot.to_dict()
+            else:
+                print(f"Attempt {attempt+1}/{max_attempts}: Document not found, sleeping for {sleep_time} seconds...")
+                time.sleep(sleep_time)
+            
+        raise TimeoutError(f"Document with ID '{user_query}' not found after {max_attempts} attempts.")
 
 
 if __name__ == "__main__":
@@ -143,5 +164,12 @@ if __name__ == "__main__":
     global_query = GlobalQueryGCP(secrets, fskg)
 
     comm_reports = global_query._get_comm_reports()
+
+    test_request = CommunityAnswerRequest(
+        community_report=comm_reports[0],
+        user_query="Which city has the most bridges?"
+    )
+
+    global_query._send_to_mq(message=test_request)
 
     print("Hello World!")
