@@ -38,6 +38,22 @@ class CommunityData:
     rating_explanation: str | None = None
     findings: list[dict] | None = None
 
+    @classmethod
+    def __from_dict__(cls, data: dict):
+        """Creates a CommunityData instance from a dictionary."""
+        return cls(
+            title=data.get("title") or "",
+            community_nodes=set(data.get("community_nodes", [])),  # Convert list to set
+            summary=data.get("summary"),
+            document_id=data.get("document_id"),
+            community_uid=data.get("community_uid"),
+            community_embedding=tuple(data.get("community_embedding", [])),  # Convert list to tuple
+            rating=data.get("rating"),
+            rating_explanation=data.get("rating_explanation"),
+            findings=data.get("findings")
+        )
+
+
 
 @dataclass
 class NodeEmbeddings:
