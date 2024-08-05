@@ -8,6 +8,9 @@ import time
 import google.auth
 from google.cloud import pubsub_v1
 
+import firebase_admin
+from firebase_admin import firestore
+
 from nosql_kg.firestore_kg import FirestoreKG
 from nosql_kg import data_model
 
@@ -33,22 +36,26 @@ class KGraphGlobalQuery:
         # initialized with info on mq, knowledge graph, shared nosql state
         pass
 
-    def __call__(self, *args: Any, **kwds: Any) -> Any:
+    def __call__(self, user_query: str) -> str:
         # orchestration method taking natural language user query to produce and return final answer to client
+        comm_report_list = self._get_comm_reports()
 
         # pair user query with existing community reports
+        query_msg_list =self._context_builder(user_query=user_query, comm_report_list=comm_report_list)
 
         # send pairs to pubsub queue for work scheduling
+        for msg in query_msg_list:
+            self._send_to_mq(message=msg)
 
-        # periodically query shared state to check for processing compeltion
-
-        # get intermediate responses
-
+        # periodically query shared state to check for processing compeltion & get intermediate responses
+        intermediate_response_list = self._check_shared_state(user_query=user_query)
+        
         # based on helpfulness build final context
 
+        
         # generate & return final response based on final context
 
-        pass
+        return ""
 
     @abstractmethod
     def _send_to_mq(self, message: CommunityAnswerRequest):
@@ -56,7 +63,7 @@ class KGraphGlobalQuery:
         pass
 
     @abstractmethod
-    def _get_comm_reports(self):
+    def _get_comm_reports(self) -> list[data_model.CommunityData]:
         # method to get all community reports from kg
         pass
 
@@ -66,16 +73,17 @@ class KGraphGlobalQuery:
         # method to query shared state for intermediate responses for one given user query
         pass
 
-    def _context_builder(self):
+    def _context_builder(self, user_query: str, comm_report_list: list[data_model.CommunityData]) -> list[CommunityAnswerRequest]:
         # given a user query pulls community reports and sends (query, community) objects for distributed LLM inference
-        pass
+        comm_answer_request_list = [CommunityAnswerRequest(community_report=c, user_query=user_query) for c in comm_report_list]
+        return comm_answer_request_list
 
-    def _build_final_context(self):
+    def _build_final_context(self, user_query: str, report: data_model.CommunityData):
         # method to generate final context based on helpfulness of top intermediate responses
-
         # final context includes community info for most helpful based on int responses
         # final context might also include node descriptions of the community members
-        pass
+
+        return ""
 
 
 class GlobalQueryGCP(KGraphGlobalQuery):
@@ -88,6 +96,12 @@ class GlobalQueryGCP(KGraphGlobalQuery):
             str(self.secrets["GCP_CREDENTIAL_FILE"]))
         
         self.fskg = fskg
+
+        if not firebase_admin._apps:
+            credentials = firebase_admin.credentials.Certificate(
+                str(self.secrets["GCP_CREDENTIAL_FILE"])
+            )
+            app = firebase_admin.initialize_app(credentials)
 
     def _send_to_mq(self, message: CommunityAnswerRequest) -> None:
         """Publishes one message to a Pub/Sub topic."""
@@ -130,8 +144,12 @@ class GlobalQueryGCP(KGraphGlobalQuery):
         Returns:
             Dict: The document data if found, otherwise raises timeout error.
         """
+        db = firestore.Client(project=self.project_id, # type: ignore
+                                   credentials=self.gcp_credentials,
+                                   database=str(self.secrets["QUERY_FS_DB_ID"])) 
+
         for attempt in range(max_attempts):
-            doc_ref = self.fskg.db.collection(str(self.secrets["INTERMEDIATE_ANSWER_COLLECTION"])).document(user_query)
+            doc_ref = db.collection(str(self.secrets["QUERY_FS_INT__RESPONSE_COLL"])).document(user_query)
             doc_snapshot = doc_ref.get()
             if doc_snapshot.exists:
                 return doc_snapshot.to_dict()
