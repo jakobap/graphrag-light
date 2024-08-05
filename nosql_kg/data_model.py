@@ -38,6 +38,20 @@ class CommunityData:
     rating_explanation: str | None = None
     findings: list[dict] | None = None
 
+    def __to_dict__(self):
+        """Converts the CommunityData instance to a dictionary."""
+        return {
+            "title": self.title,
+            "community_nodes": list(self.community_nodes),  # Convert set to list for JSON serialization
+            "summary": self.summary,
+            "document_id": self.document_id,
+            "community_uid": self.community_uid,
+            "community_embedding": list(self.community_embedding),  # Convert tuple to list for JSON serialization
+            "rating": self.rating,
+            "rating_explanation": self.rating_explanation,
+            "findings": self.findings
+        }
+
     @classmethod
     def __from_dict__(cls, data: dict):
         """Creates a CommunityData instance from a dictionary."""
