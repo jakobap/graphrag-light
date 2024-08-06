@@ -83,6 +83,16 @@ class NoSQLKnowledgeGraph(ABC):
         """Implements nearest neighbor search based on nosql db index."""
         pass
 
+    @abstractmethod
+    def get_community(self, community_id: str) -> CommunityData: 
+        """Retrieves the community report for a given community id."""
+        pass
+
+    @abstractmethod
+    def list_communities(self) -> List[CommunityData]:
+        """Lists all stored communities for the given network.""" 
+        pass
+
     def visualize_graph(self, filename: str = f"graph_{datetime.datetime.now()}.png") -> None:
         """Visualizes the provided networkx graph using matplotlib.
 
