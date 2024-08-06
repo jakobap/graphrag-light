@@ -17,7 +17,7 @@ from dotenv import dotenv_values
 import base64
 from google.cloud import aiplatform
 import vertexai
-from vertexai.generative_models import GenerativeModel, Part, FinishReason
+from vertexai.generative_models import GenerativeModel, Part, FinishReason, GenerationConfig
 import vertexai.preview.generative_models as generative_models
 from vertexai.language_models import TextEmbeddingInput, TextEmbeddingModel
 import json
@@ -52,13 +52,13 @@ class LLMSession:
 
         response = self.model.generate_content(
             [client_query_string],
-            generation_config={
-                "max_output_tokens": max_output_tokens,
-                "temperature": temperature,
-                "top_p": top_p,
-                "response_mime_type": response_mime_type,
-                "response_schema": response_schema
-            },
+            generation_config=GenerationConfig(
+                max_output_tokens=max_output_tokens,
+                temperature=temperature,
+                top_p=top_p,
+                response_mime_type=response_mime_type,
+                response_schema=response_schema
+            ),
             stream=False
         )
         return response.text  # type: ignore
@@ -72,13 +72,13 @@ class LLMSession:
                       response_mime_type: Optional[str] = None,
                       response_schema: Optional[Dict[str, Any]] = None) -> str:
         
-        generation_config = {
-            "max_output_tokens": max_output_tokens,
-            "temperature": temperature,
-            "top_p": top_p,
-            "response_mime_type": response_mime_type,
-            "response_schema": response_schema
-        }
+        generation_config = GenerationConfig(
+                max_output_tokens=max_output_tokens,
+                temperature=temperature,
+                top_p=top_p,
+                response_mime_type=response_mime_type,
+                response_schema=response_schema
+            )
 
         response = self.model_chat.send_message(
             client_query_string,
