@@ -24,7 +24,8 @@ import json
 
 from typing import List, Optional, Dict, Any
 
-from langfuse.decorators import observe
+from langfuse.decorators import observe, langfuse_context
+from langfuse.model import ModelUsage
 
 
 class LLMSession:
@@ -58,8 +59,15 @@ class LLMSession:
             ),
             stream=False
         )
-        return response.text  # type: ignore
-    
+
+        response_text = response.text  # type: ignore
+
+        self._langfuse_observation_meta(observation_name="Text Generate",
+                                        query_string=client_query_string,
+                                        vertex_model_response=response)
+
+        return response_text
+
     @observe(as_type="generation")
     def generate_chat(self,
                       client_query_string: str,
@@ -68,30 +76,37 @@ class LLMSession:
                       top_p: float = 0.5,
                       response_mime_type: Optional[str] = None,
                       response_schema: Optional[Dict[str, Any]] = None) -> str:
-        
-        generation_config = {
-            "max_output_tokens": max_output_tokens,
-            "temperature": temperature,
-            "top_p": top_p,
-            "response_mime_type": response_mime_type,
-            "response_schema": response_schema
-        }
+
+        generation_config = GenerationConfig(
+            max_output_tokens=max_output_tokens,
+            temperature=temperature,
+            top_p=top_p,
+            response_mime_type=response_mime_type,
+            response_schema=response_schema
+        )
 
         response = self.model_chat.send_message(
             client_query_string,
             stream=False,
             generation_config=generation_config)
-        return response.text  # type: ignore
 
-    def parse_json_response(self, res:str) ->  dict:
+        text_response = response.text  # type: ignore
+
+        self._langfuse_observation_meta(observation_name="Chat Generate",
+                                        query_string=client_query_string,
+                                        vertex_model_response=response)
+
+        return text_response
+
+    def parse_json_response(self, res: str) -> dict:
         # Remove the ```json\n and \n``` delimiters
         res = res.replace('```json\n', '').replace('\n```', '')
 
         # Parse the JSON response
         try:
-            res_dict = json.loads(res) 
+            res_dict = json.loads(res)
             return res_dict
-        
+
         except json.JSONDecodeError as e:
             print(f"Error decoding JSON: {e}")
             return {}
@@ -100,14 +115,62 @@ class LLMSession:
                    task: str = "RETRIEVAL_DOCUMENT",
                    model_name: str = "text-embedding-004",
                    dimensionality: Optional[int] = 768) -> List[float]:
-
         """Embeds texts with a pre-trained, foundational model."""
 
         model = TextEmbeddingModel.from_pretrained(model_name)
         input = TextEmbeddingInput(text, task)
         # kwargs = dict(output_dimensionality=dimensionality) if dimensionality else {}
-        embedding = model.get_embeddings(texts=[input], output_dimensionality=dimensionality)
+        embedding = model.get_embeddings(
+            texts=[input], output_dimensionality=dimensionality)
         return embedding
+
+    def _vertex_price_estimation(self) -> tuple[float, float]:
+
+        if "gemini-1.5-pro" in self.model_name:
+            input_token_price = 0.00125 / 1000
+            output_token_price = 0.00375 / 1000
+
+        elif "gemini-1.5-flash" in self.model_name:
+            input_token_price = 0.00001875 / 1000
+            output_token_price = 0.000075 / 1000
+
+        else:
+            raise ValueError(f"Pricing for {self.model_name} not found.")
+
+        return input_token_price, output_token_price
+
+        pass
+
+    def _langfuse_observation_meta(self, observation_name: str,
+                                   query_string: str,
+                                   vertex_model_response) -> None:
+        """
+        Update langfuse observation with usage metadata.
+        """
+        input_token_price, output_token_price = self._vertex_price_estimation()
+        input_token_count = int(
+            vertex_model_response.usage_metadata.prompt_token_count)
+        output_token_count = int(
+            vertex_model_response.usage_metadata.candidates_token_count)
+
+        langfuse_context.update_current_observation(
+            name=observation_name,
+            input=query_string,
+            output=vertex_model_response.text,
+            usage=ModelUsage(
+                unit="TOKENS",
+                input=input_token_count,
+                output=output_token_count,
+                total=int(
+                    vertex_model_response.usage_metadata.total_token_count),
+                input_cost=float(input_token_price),
+                output_cost=float(output_token_price),
+                total_cost=float(input_token_price * input_token_count +
+                                 output_token_price * output_token_count)
+            )
+        )
+        return None
+
 
 if __name__ == "__main__":
     response_schema = {

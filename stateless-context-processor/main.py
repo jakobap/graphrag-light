@@ -1,3 +1,4 @@
+from http import client
 import json
 import logging
 import traceback
@@ -9,7 +10,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from langfuse.decorators import observe, langfuse_context
-from dotenv import dotenv_values, load_dotenv
+from dotenv import dotenv_values
 
 import firebase_admin
 from firebase_admin import firestore
@@ -58,7 +59,13 @@ response:
 @observe()
 def generate_response(client_query: str, community_report: dict):
 
-    load_dotenv(".env")
+
+
+    langfuse_context.update_current_trace(
+        name="Community Intermediate Query Gen",
+        session_id=client_query,
+        public=False
+    )
 
     llm = LLMSession(
         system_message=MAP_SYSTEM_PROMPT,
@@ -100,11 +107,12 @@ def store_in_fs(response: str, user_query: str, community_report: dict) -> None:
         user_query (str): The original user query.
         community_report (dict): The community report used for the response.
     """
-    gcp_credentials, project_id = google.auth.load_credentials_from_file(str(os.getenv("GCP_CREDENTIAL_FILE")))
+    secrets = dotenv_values(".env")
+    gcp_credentials, project_id = google.auth.load_credentials_from_file(str(secrets["GCP_CREDENTIAL_FILE"]))
 
-    db = firestore.Client(project=os.getenv("GCP_PROJECT_ID"),  # type: ignore
-                           credentials=os.getenv("GOOGLE_APPLICATION_CREDENTIALS"),  # Use correct env variable
-                           database=os.getenv("QUERY_FS_DB_ID"))  # Use database ID from .env
+    db = firestore.Client(project=project_id,  # type: ignore
+                           credentials=gcp_credentials, 
+                           database=str(secrets["QUERY_FS_DB_ID"]))  
 
     # Extract community title for structuring data
     community_title = community_report.get("title", "Unknown Community")
@@ -124,7 +132,7 @@ def store_in_fs(response: str, user_query: str, community_report: dict) -> None:
     }
 
     # Get a reference to the document (using user_query as key)
-    doc_ref = db.collection(os.getenv("QUERY_FS_INT__RESPONSE_COLL")).document(user_query)  # Use collection ID from .env
+    doc_ref = db.collection(secrets["QUERY_FS_INT__RESPONSE_COLL"]).document(user_query)  # Use collection ID from .env
 
     # Get the existing data if any
     doc_snapshot = doc_ref.get()
@@ -150,6 +158,14 @@ async def helloworld():
 @app.post("/receive_analysis_request")
 async def trigger_analysis(request: Request):
     """Receive and parse Pub/Sub messages."""
+    secrets = dotenv_values(".env")
+
+    os.environ["LANGFUSE_SECRET_KEY"] = str(
+            secrets["LANGFUSE_SECRET_KEY"])
+    os.environ["LANGFUSE_PUBLIC_KEY"] = str(
+            secrets["LANGFUSE_PUBLIC_KEY"])
+    os.environ["LANGFUSE_HOST"] = "https://cloud.langfuse.com"
+
     try:
         payload = await request.body()
         message_dict = json.loads(payload.decode())
