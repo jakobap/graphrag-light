@@ -365,9 +365,27 @@ class FirestoreKG(NoSQLKnowledgeGraph):
 
         self.networkx = graph
 
+    def get_community(self, community_id: str) -> CommunityData:
+        """Retrieves the community report for a given community id."""
+        doc_ref = self.db.collection(self.community_coll_id).document(community_id)
+        doc_snapshot = doc_ref.get()
+
+        if doc_snapshot.exists:
+            try:
+                community_data = CommunityData(**doc_snapshot.to_dict())
+                return community_data
+            except TypeError as e:
+                raise ValueError(
+                    f"Error: Data fetched for community_id '{community_id}' does not match the CommunityData format. Details: {e}"
+                ) from e
+        else:
+            raise KeyError(f"Error: No community found with community_id: {community_id}")
+
+
     def list_communities(self) -> List[CommunityData]:
         """Lists all communities for the given network."""
-        return []
+        docs = self.db.collection(self.community_coll_id).stream()
+        return [CommunityData.__from_dict__(doc.to_dict()) for doc in docs]
 
     def _update_egde_coll(self, edge_uid: str, source_uid: str, target_uid: str, description: str) -> None:
         """Update edge record in the edges collection."""
