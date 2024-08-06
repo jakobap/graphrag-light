@@ -59,8 +59,6 @@ response:
 @observe()
 def generate_response(client_query: str, community_report: dict):
 
-
-
     langfuse_context.update_current_trace(
         name="Community Intermediate Query Gen",
         session_id=client_query,
@@ -125,7 +123,7 @@ def store_in_fs(response: str, user_query: str, community_report: dict) -> None:
         return  # Exit early on error
 
     # Prepare data for Firestore
-    data = {
+    refreshed_data = {
         "community": community_title,
         "response": response_dict.get("response", ""),
         "score": response_dict.get("score", 0)
@@ -138,17 +136,14 @@ def store_in_fs(response: str, user_query: str, community_report: dict) -> None:
     doc_snapshot = doc_ref.get()
     existing_data = doc_snapshot.to_dict() if doc_snapshot.exists else {}
 
-    # Append the new data to the existing list or create a new list
-    responses_list = existing_data.get("responses", [])
-    responses_list.append(data)
+    existing_data[community_title] = refreshed_data
 
     # Update the document with the new list
-    doc_ref.set({"responses": responses_list}, merge=True)
+    doc_ref.set(existing_data, merge=True)
 
     logging.info(f"Stored response for query '{user_query}' and community '{community_title}' in Firestore.")
     print("saving in fs done")
 
-    return None
 
 @app.get("/helloworld")
 async def helloworld():
@@ -186,9 +181,16 @@ async def trigger_analysis(request: Request):
 
         store_in_fs(response=response_json, user_query=message_dict["user_query"], community_report=message_dict["community_report"])
 
+        print("analysis done")
         return JSONResponse(content={"message": "File analysis completed successfully!"}, status_code=200)
     except Exception as e:
         msg = f"Something went wrong during file analysis: {e}"
         logging.error(msg)
         traceback.print_exc()
         return JSONResponse(content={"message": msg}, status_code=500)
+
+
+# if __name__ == "__main__":
+#     response = generate_response(client_query="Who won the nobel peace prize 2023?", community_report={"title": "Testing Nobel Peace Prize"}) 
+#     store_in_fs(response=response, user_query="Who won the nobel peace prize 2023?", community_report={"title": "Testing Nobel Peace Prize"}) 
+#     print("Hello World!")
