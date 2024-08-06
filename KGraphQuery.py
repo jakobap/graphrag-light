@@ -4,6 +4,7 @@ from typing import Any
 import json
 from dotenv import dotenv_values
 import time
+from operator import attrgetter
 
 import google.auth
 from google.cloud import pubsub_v1
@@ -31,6 +32,28 @@ class CommunityAnswerRequest:
         }
 
 
+@dataclass
+class IntermediateCommRespose:
+    community: str
+    response: str
+    score: int
+
+    def to_dict(self):
+        return {
+            "community": self.community,
+            "response": self.response,
+            "score": self.score
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict):
+        return cls(
+            community=str(data.get("community")),
+            response=str(data.get("response")),
+            score=int(data.get("score", 0))
+            )
+
+
 class KGraphGlobalQuery:
     def __init__(self) -> None:
         # initialized with info on mq, knowledge graph, shared nosql state
@@ -41,19 +64,26 @@ class KGraphGlobalQuery:
         comm_report_list = self._get_comm_reports()
 
         # pair user query with existing community reports
-        query_msg_list =self._context_builder(user_query=user_query, comm_report_list=comm_report_list)
+        query_msg_list = self._context_builder(
+            user_query=user_query, comm_report_list=comm_report_list)
 
         # send pairs to pubsub queue for work scheduling
-        for msg in query_msg_list:
-            self._send_to_mq(message=msg)
+        # for msg in query_msg_list:
+        #     self._send_to_mq(message=msg)
 
         # periodically query shared state to check for processing compeltion & get intermediate responses
-        intermediate_response_list = self._check_shared_state(user_query=user_query)
-        
-        # based on helpfulness build final context
+        intermediate_response_list = self._check_shared_state(
+            user_query=user_query)
 
-        
-        # generate & return final response based on final context
+        # based on helpfulness build final context
+        sorted_final_responses = self._filter_and_sort_responses(intermediate_response_list=intermediate_response_list)
+
+        # get full community reports for the selected communities
+        comm_report_list = [fskg.get_community(r.community) for r in sorted_final_responses]
+
+
+        # generate & return final response based on final context community repors and nodes.
+
 
         return ""
 
@@ -68,14 +98,17 @@ class KGraphGlobalQuery:
         pass
 
     @abstractmethod
-    def _check_shared_state(self, user_query:str, max_attempts: int = 10, sleep_time: int = 2):
+    def _check_shared_state(self, user_query: str,
+                            max_attempts: int = 6,
+                            sleep_time: int = 10) -> list[IntermediateCommRespose]:
         # method to check shared state for query result
         # method to query shared state for intermediate responses for one given user query
         pass
 
     def _context_builder(self, user_query: str, comm_report_list: list[data_model.CommunityData]) -> list[CommunityAnswerRequest]:
         # given a user query pulls community reports and sends (query, community) objects for distributed LLM inference
-        comm_answer_request_list = [CommunityAnswerRequest(community_report=c, user_query=user_query) for c in comm_report_list]
+        comm_answer_request_list = [CommunityAnswerRequest(
+            community_report=c, user_query=user_query) for c in comm_report_list]
         return comm_answer_request_list
 
     def _build_final_context(self, user_query: str, report: data_model.CommunityData):
@@ -85,6 +118,32 @@ class KGraphGlobalQuery:
 
         return ""
 
+    def _filter_and_sort_responses(self,
+                                   intermediate_response_list: list[IntermediateCommRespose],
+                                   relevance_threshhold: int = 0,
+                                   max_responses: int = 10):
+        """
+        Filters out responses with score 0 and sorts the remaining responses 
+        by score value in descending order.
+
+        Args:
+            intermediate_response_list: A list of IntermediateCommRespose objects.
+            relevance_threshhold: Minimum relevance score to be included in final context.
+            max_responses: Maximum number of intermediate resposes to be included in final context.
+
+        Returns:
+            A list of IntermediateCommRespose objects with score > 0, sorted by 
+            score in descending order.
+        """
+        # Filter out responses with score 0
+        filtered_responses = [
+            response for response in intermediate_response_list if response.score > relevance_threshhold
+        ]
+        # Sort the remaining responses by score in descending order
+        sorted_responses = sorted(
+            filtered_responses, key=attrgetter('score'), reverse=True
+        )
+        return sorted_responses[:max_responses]
 
 class GlobalQueryGCP(KGraphGlobalQuery):
     def __init__(self, secrets: dict, fskg: FirestoreKG) -> None:
@@ -94,7 +153,7 @@ class GlobalQueryGCP(KGraphGlobalQuery):
 
         self.gcp_credentials, self.project_id = google.auth.load_credentials_from_file(
             str(self.secrets["GCP_CREDENTIAL_FILE"]))
-        
+
         self.fskg = fskg
 
         if not firebase_admin._apps:
@@ -132,7 +191,9 @@ class GlobalQueryGCP(KGraphGlobalQuery):
         docs = self.fskg.db.collection(comm_coll)
         return [data_model.CommunityData.__from_dict__(doc.to_dict()) for doc in docs.stream()]
 
-    def _check_shared_state(self, user_query:str, max_attempts: int = 5, sleep_time: int = 5) -> dict:
+    def _check_shared_state(self, user_query: str,
+                            max_attempts: int = 6,
+                            sleep_time: int = 10) -> list[IntermediateCommRespose]:
         """
         Periodically checks for the existence of a document with user_query as id. 
 
@@ -144,19 +205,27 @@ class GlobalQueryGCP(KGraphGlobalQuery):
         Returns:
             Dict: The document data if found, otherwise raises timeout error.
         """
-        db = firestore.Client(project=self.project_id, # type: ignore
-                                   credentials=self.gcp_credentials,
-                                   database=str(self.secrets["QUERY_FS_DB_ID"])) 
+        query_db = firestore.Client(project=self.project_id,  # type: ignore
+                              credentials=self.gcp_credentials,
+                              database=str(self.secrets["QUERY_FS_DB_ID"]))
+        
+        comm_list = fskg.list_communities()
 
+        time.sleep(5)
         for attempt in range(max_attempts):
-            doc_ref = db.collection(str(self.secrets["QUERY_FS_INT__RESPONSE_COLL"])).document(user_query)
+            doc_ref = query_db.collection(
+                str(self.secrets["QUERY_FS_INT__RESPONSE_COLL"])).document(user_query)
             doc_snapshot = doc_ref.get()
             if doc_snapshot.exists:
-                return doc_snapshot.to_dict()
+                num_stored_responses = len(doc_snapshot.to_dict().keys())
+                if num_stored_responses == len(comm_list):
+                    responses = doc_snapshot.to_dict()
+                    comms = responses.keys()
+                    return [IntermediateCommRespose.from_dict(responses[c]) for c in comms]
             else:
                 print(f"Attempt {attempt+1}/{max_attempts}: Document not found, sleeping for {sleep_time} seconds...")
                 time.sleep(sleep_time)
-            
+
         raise TimeoutError(f"Document with ID '{user_query}' not found after {max_attempts} attempts.")
 
 
@@ -181,14 +250,16 @@ if __name__ == "__main__":
 
     global_query = GlobalQueryGCP(secrets, fskg)
 
-    comm_reports = global_query._get_comm_reports()
+    # comm_reports = global_query._get_comm_reports()
 
-    for i in range(len(comm_reports)):
-        test_request = CommunityAnswerRequest(
-            community_report=comm_reports[i],
-            user_query="Who won the nobel peace prize 2023?"
-        )
+    global_query(user_query="Who won the nobel peace prize 2023?")
 
-        global_query._send_to_mq(message=test_request)
+    # for i in range(len(comm_reports)):
+    #     test_request = CommunityAnswerRequest(
+    #         community_report=comm_reports[i],
+    #         user_query="Who won the nobel peace prize 2023?"
+    #     )
+
+    #     global_query._send_to_mq(message=test_request)
 
     print("Hello World!")
