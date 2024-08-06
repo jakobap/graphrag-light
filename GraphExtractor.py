@@ -491,31 +491,31 @@ if __name__ == "__main__":
     # )
     # extracted_graph = extractor(text_input=document_string, max_extr_rounds=1)
     
-    # document_string = ingestion(
-    #     new_file_name="./pdf_articles/Physicist Narges Mohammadi awarded Nobe... for human-rights work – Physics World.pdf", ingest_local_file=True
-    # )
-    # extracted_graph = extractor(text_input=document_string, max_extr_rounds=1)
+    document_string = ingestion(
+        new_file_name="./pdf_articles/Physicist Narges Mohammadi awarded Nobe... for human-rights work – Physics World.pdf", ingest_local_file=True
+    )
+    extracted_graph = extractor(text_input=document_string, max_extr_rounds=1)
 
-    # fskg.visualize_graph("visualized.png")
+    fskg.visualize_graph("visualized.png")
 
-    # extractor.generate_comm_reports(kg=fskg)
+    extractor.generate_comm_reports(kg=fskg)
 
     extractor.update_node_embeddings()
 
     node_embeddings = fskg.get_node2vec_embeddings()
 
-    llm = LLMSession(
-        system_message="",
-        model_name="gemini-1.5-pro-001"
-    )
+    # llm = LLMSession(
+    #     system_message="",
+    #     model_name="gemini-1.5-pro-001"
+    # )
 
-    emb = llm.embed_text(text='who was the nobel peace prize winner 2023', dimensionality=768)
+    # emb = llm.embed_text(text='who was the nobel peace prize winner 2023', dimensionality=768)
 
     # narges_index = node_embeddings.nodes.index('NARGES MOHAMMADI')
 
-    nn = fskg.get_nearest_neighbors(emb[0].values)
+    # nn = fskg.get_nearest_neighbors(emb[0].values)
 
-    for i in range(4):
-        print(nn[i]["node_uid"])
+    # for i in range(4):
+    #     print(nn[i]["node_uid"])
 
     print("Hello World!")
