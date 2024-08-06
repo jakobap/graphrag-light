@@ -47,6 +47,12 @@ class GraphExtractor:
 
     @observe()
     def __call__(self, text_input: str, max_extr_rounds: int = 5) -> None:
+
+        langfuse_context.update_current_trace(
+                name="Graph Extractor",
+                public=False
+            )
+
         input_prompt = self._construct_extractor_input(input_text=text_input)
 
         # response = self.llm.generate(client_query_string=input_prompt)
@@ -339,7 +345,13 @@ class GraphExtractor:
         result = result.replace('"', '')
         return result
 
+    @observe()
     def generate_comm_reports(self, kg: NoSQLKnowledgeGraph) -> None:
+
+        langfuse_context.update_current_trace(
+                name="Community Report Generation",
+                public=False
+            )
 
         llm = LLMSession(system_message=prompts.COMMUNITY_REPORT_SYSTEM,
                          model_name="gemini-1.5-pro-001")
