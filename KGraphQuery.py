@@ -183,11 +183,12 @@ if __name__ == "__main__":
 
     comm_reports = global_query._get_comm_reports()
 
-    test_request = CommunityAnswerRequest(
-        community_report=comm_reports[0],
-        user_query="Which city has the most bridges?"
-    )
+    for i in range(len(comm_reports)):
+        test_request = CommunityAnswerRequest(
+            community_report=comm_reports[i],
+            user_query="Who won the nobel peace prize 2023?"
+        )
 
-    global_query._send_to_mq(message=test_request)
+        global_query._send_to_mq(message=test_request)
 
     print("Hello World!")
