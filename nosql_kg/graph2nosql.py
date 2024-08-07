@@ -1,6 +1,10 @@
+try:
+    from nosql_kg.data_model import NodeData, EdgeData, CommunityData, NodeEmbeddings
+except:
+    from data_model import NodeData, EdgeData, CommunityData, NodeEmbeddings
+
 from re import A
 import networkx
-from nosql_kg.data_model import NodeData, EdgeData, CommunityData, NodeEmbeddings
 
 from abc import ABC, abstractmethod
 from typing import Dict, List

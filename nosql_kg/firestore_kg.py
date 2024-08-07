@@ -1,6 +1,11 @@
+try:
+    from .graph2nosql import NoSQLKnowledgeGraph
+    from .data_model import NodeData, EdgeData, CommunityData
+except:
+    from graph2nosql import NoSQLKnowledgeGraph
+    from data_model import NodeData, EdgeData, CommunityData
+
 from matplotlib.pylab import source
-from .graph2nosql import NoSQLKnowledgeGraph
-from .data_model import NodeData, EdgeData, CommunityData
 
 from typing import Dict, List
 import datetime
@@ -381,7 +386,6 @@ class FirestoreKG(NoSQLKnowledgeGraph):
         else:
             raise KeyError(f"Error: No community found with community_id: {community_id}")
 
-
     def list_communities(self) -> List[CommunityData]:
         """Lists all communities for the given network."""
         docs = self.db.collection(self.community_coll_id).stream()
@@ -456,7 +460,7 @@ class FirestoreKG(NoSQLKnowledgeGraph):
         vector_field="embedding",
         query_vector=Vector(query_vec),
         distance_measure=DistanceMeasure.EUCLIDEAN,
-        limit=5).get()
+        limit=10).get()
     
         return [n.to_dict() for n in nn]
 
@@ -466,7 +470,6 @@ if __name__ == "__main__":
 
     os.chdir(os.path.dirname(os.path.abspath(__file__))) 
     
-
     secrets = dotenv_values(".env")
 
     firestore_credential_file = str(secrets["GCP_CREDENTIAL_FILE"])
@@ -484,5 +487,12 @@ if __name__ == "__main__":
         edges_collection_id=edges_coll_id,
         community_collection_id=community_coll_id
     )
+
+    node = fskg.get_node(node_uid="2022 IRANIAN PROTESTS")
+
+    nn = fskg.get_nearest_neighbors(node.embedding)
+
+    for n in nn:
+        print(n["node_uid"])
 
     print("Hello World!")
