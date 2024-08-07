@@ -7,7 +7,7 @@ from IngestionSession import IngestionSession
 from LLMSession import LLMSession
 
 from nosql_kg.graph2nosql import NoSQLKnowledgeGraph
-import prompts
+import graphrag.prompts as prompts
 from nosql_kg.firestore_kg import FirestoreKG
 from nosql_kg import data_model
 
@@ -525,7 +525,7 @@ if __name__ == "__main__":
 
     fskg.visualize_graph("visualized.png")
 
-    extractor.generate_comm_reports(kg=fskg)
+    # extractor.generate_comm_reports(kg=fskg)
 
     extractor.update_node_embeddings()
 

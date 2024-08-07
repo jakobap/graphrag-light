@@ -18,8 +18,8 @@ from langfuse.decorators import observe, langfuse_context
 from nosql_kg.firestore_kg import FirestoreKG
 from nosql_kg import data_model
 
-from LLMSession import LLMSession
-import prompts
+import graphrag.prompts as prompts
+from graphrag.LLMSession import LLMSession
 
 
 @dataclass
@@ -88,7 +88,7 @@ class KGraphGlobalQuery:
         sorted_final_responses = self._filter_and_sort_responses(intermediate_response_list=intermediate_response_list)
 
         # get full community reports for the selected communities
-        comm_report_list = [fskg.get_community(r.community) for r in sorted_final_responses]
+        comm_report_list = self._get_communities_reports(sorted_final_responses)
 
         # generate & return final response based on final context community repors and nodes.
         final_response_system = prompts.GLOBAL_SEARCH_REDUCE_SYSTEM.format(
@@ -129,6 +129,11 @@ class KGraphGlobalQuery:
         # method to query shared state for intermediate responses for one given user query
         pass
 
+    @abstractmethod
+    def _get_communities_reports(self, sorted_final_responses: list) -> list[data_model.CommunityData]:
+        """Get Community reports for final context building depending on selected KG storage."""
+        pass
+
     def _context_builder(self, user_query: str, comm_report_list: list[data_model.CommunityData]) -> list[CommunityAnswerRequest]:
         # given a user query pulls community reports and sends (query, community) objects for distributed LLM inference
         comm_answer_request_list = [CommunityAnswerRequest(
@@ -145,7 +150,7 @@ class KGraphGlobalQuery:
     def _filter_and_sort_responses(self,
                                    intermediate_response_list: list[IntermediateCommRespose],
                                    relevance_threshhold: int = 0,
-                                   max_responses: int = 10):
+                                   max_responses: int = 10) -> list[IntermediateCommRespose]:
         """
         Filters out responses with score 0 and sorts the remaining responses 
         by score value in descending order.
@@ -239,7 +244,7 @@ class GlobalQueryGCP(KGraphGlobalQuery):
                               credentials=self.gcp_credentials,
                               database=str(self.secrets["QUERY_FS_DB_ID"]))
         
-        comm_list = fskg.list_communities()
+        comm_list = self.fskg.list_communities()
 
         time.sleep(5)
         for attempt in range(max_attempts):
@@ -261,6 +266,8 @@ class GlobalQueryGCP(KGraphGlobalQuery):
 
         raise TimeoutError(f"Document with ID '{user_query}' not found after {max_attempts} attempts.")
 
+    def _get_communities_reports(self, sorted_final_responses: list) -> list[data_model.CommunityData]: 
+        return [self.fskg.get_community(r.community) for r in sorted_final_responses]
 
 if __name__ == "__main__":
     secrets = dotenv_values(".env")

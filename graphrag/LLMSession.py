@@ -22,8 +22,7 @@ import vertexai.preview.generative_models as generative_models
 from vertexai.language_models import TextEmbeddingInput, TextEmbeddingModel
 import json
 
-import prompts
-import sample_txt
+import graphrag.prompts as prompts
 
 from typing import List, Optional, Dict, Any
 
@@ -214,7 +213,7 @@ if __name__ == "__main__":
 
     graph_extraction_input = prompts.GRAPH_EXTRACTION_INPUT.format(
         entity_types=", ".join(DEFAULT_ENTITY_TYPES),
-        input_text=sample_txt.sample_text,
+        input_text="",
     )
 
     llm = LLMSession(
