@@ -503,10 +503,25 @@ if __name__ == "__main__":
     # )
     # extracted_graph = extractor(text_input=document_string, max_extr_rounds=1)
     
-    document_string = ingestion(
-        new_file_name="./pdf_articles/Physicist Narges Mohammadi awarded Nobe... for human-rights work – Physics World.pdf", ingest_local_file=True
-    )
-    extracted_graph = extractor(text_input=document_string, max_extr_rounds=1)
+    # document_string = ingestion(
+    #     new_file_name="./pdf_articles/Albert-Einstein.pdf", ingest_local_file=True
+    # )
+    # extracted_graph = extractor(text_input=document_string, max_extr_rounds=1)
+
+    # document_string = ingestion(
+    #     new_file_name="./pdf_articles/mahatma-gandhi.pdf", ingest_local_file=True
+    # )
+    # extracted_graph = extractor(text_input=document_string, max_extr_rounds=1)
+
+    # document_string = ingestion(
+    #     new_file_name="./pdf_articles/Narges-Mohammadi.pdf", ingest_local_file=True
+    # )
+    # extracted_graph = extractor(text_input=document_string, max_extr_rounds=1)
+
+    # document_string = ingestion(
+    #     new_file_name="./pdf_articles/2024 United States presidential election - Wikipedia.pdf", ingest_local_file=True
+    # )
+    # extracted_graph = extractor(text_input=document_string, max_extr_rounds=1)
 
     fskg.visualize_graph("visualized.png")
 
@@ -514,7 +529,7 @@ if __name__ == "__main__":
 
     extractor.update_node_embeddings()
 
-    node_embeddings = fskg.get_node2vec_embeddings()
+    # node_embeddings = fskg.get_node2vec_embeddings()
 
     # llm = LLMSession(
     #     system_message="",
