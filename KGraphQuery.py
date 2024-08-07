@@ -5,6 +5,7 @@ import json
 from dotenv import dotenv_values
 import time
 from operator import attrgetter
+import os
 
 import google.auth
 from google.cloud import pubsub_v1
@@ -12,8 +13,13 @@ from google.cloud import pubsub_v1
 import firebase_admin
 from firebase_admin import firestore
 
+from langfuse.decorators import observe, langfuse_context
+
 from nosql_kg.firestore_kg import FirestoreKG
 from nosql_kg import data_model
+
+from LLMSession import LLMSession
+import prompts
 
 
 @dataclass
@@ -59,7 +65,9 @@ class KGraphGlobalQuery:
         # initialized with info on mq, knowledge graph, shared nosql state
         pass
 
+    @observe()
     def __call__(self, user_query: str) -> str:
+
         # orchestration method taking natural language user query to produce and return final answer to client
         comm_report_list = self._get_comm_reports()
 
@@ -68,8 +76,9 @@ class KGraphGlobalQuery:
             user_query=user_query, comm_report_list=comm_report_list)
 
         # send pairs to pubsub queue for work scheduling
-        # for msg in query_msg_list:
-        #     self._send_to_mq(message=msg)
+        for msg in query_msg_list:
+            self._send_to_mq(message=msg)
+        print("int response request sent to mq")
 
         # periodically query shared state to check for processing compeltion & get intermediate responses
         intermediate_response_list = self._check_shared_state(
@@ -81,11 +90,26 @@ class KGraphGlobalQuery:
         # get full community reports for the selected communities
         comm_report_list = [fskg.get_community(r.community) for r in sorted_final_responses]
 
-
         # generate & return final response based on final context community repors and nodes.
+        final_response_system = prompts.GLOBAL_SEARCH_REDUCE_SYSTEM.format(
+            response_type="Detailled and wholistic in academic style analysis of the given information in 2-3 paragraphs and up to 10 sentences.")
+        
+        langfuse_context.update_current_trace(
+                name="Global Query Reduce",
+                public=False
+            )
 
+        llm = LLMSession(
+            system_message=final_response_system,
+            model_name="gemini-1.5-pro-001"
+        )
 
-        return ""
+        final_query_string = prompts.GLOBAL_SEARCH_REDUCE_QUERY.format(
+            report_data=comm_report_list,
+            user_query=user_query
+        )
+        final_response = llm.generate(client_query_string=final_query_string)
+        return final_response
 
     @abstractmethod
     def _send_to_mq(self, message: CommunityAnswerRequest):
@@ -151,6 +175,12 @@ class GlobalQueryGCP(KGraphGlobalQuery):
 
         self.secrets = secrets
 
+        os.environ["LANGFUSE_SECRET_KEY"] = str(
+                self.secrets["LANGFUSE_SECRET_KEY"])
+        os.environ["LANGFUSE_PUBLIC_KEY"] = str(
+                self.secrets["LANGFUSE_PUBLIC_KEY"])
+        os.environ["LANGFUSE_HOST"] = "https://cloud.langfuse.com"
+
         self.gcp_credentials, self.project_id = google.auth.load_credentials_from_file(
             str(self.secrets["GCP_CREDENTIAL_FILE"]))
 
@@ -173,7 +203,7 @@ class GlobalQueryGCP(KGraphGlobalQuery):
 
         # Publish the message
         mes = json.dumps(message.__to_dict__())
-        print(mes)
+        # print(mes)
         # print(json.loads(mes))
         future = publisher.publish(
             topic_path, mes.encode("utf-8"))
@@ -193,7 +223,7 @@ class GlobalQueryGCP(KGraphGlobalQuery):
 
     def _check_shared_state(self, user_query: str,
                             max_attempts: int = 6,
-                            sleep_time: int = 10) -> list[IntermediateCommRespose]:
+                            sleep_time: int = 15) -> list[IntermediateCommRespose]:
         """
         Periodically checks for the existence of a document with user_query as id. 
 
@@ -218,10 +248,13 @@ class GlobalQueryGCP(KGraphGlobalQuery):
             doc_snapshot = doc_ref.get()
             if doc_snapshot.exists:
                 num_stored_responses = len(doc_snapshot.to_dict().keys())
-                if num_stored_responses == len(comm_list):
+                if num_stored_responses >= len(comm_list) * 0.75:
                     responses = doc_snapshot.to_dict()
                     comms = responses.keys()
                     return [IntermediateCommRespose.from_dict(responses[c]) for c in comms]
+                else:
+                    print(f"Attempt {attempt+1}/{max_attempts}: Document not found, sleeping for {sleep_time} seconds...")
+                    time.sleep(sleep_time)
             else:
                 print(f"Attempt {attempt+1}/{max_attempts}: Document not found, sleeping for {sleep_time} seconds...")
                 time.sleep(sleep_time)
@@ -250,16 +283,12 @@ if __name__ == "__main__":
 
     global_query = GlobalQueryGCP(secrets, fskg)
 
-    # comm_reports = global_query._get_comm_reports()
+    start_time = time.time()
+    final_response = global_query(user_query="Who were the most influential personalities that are mentioned in the knowledgebase?")
+    end_time = time.time()
 
-    global_query(user_query="Who won the nobel peace prize 2023?")
-
-    # for i in range(len(comm_reports)):
-    #     test_request = CommunityAnswerRequest(
-    #         community_report=comm_reports[i],
-    #         user_query="Who won the nobel peace prize 2023?"
-    #     )
-
-    #     global_query._send_to_mq(message=test_request)
+    processing_time = end_time - start_time
+    print(f"Processing time: {processing_time:.2f} seconds")
+    print(final_response)
 
     print("Hello World!")
