@@ -27,7 +27,6 @@ MAP_SYSTEM_PROMPT = """
 You are an expert agent answering questions based on context that is organized as a knowledge graph.
 You will be provided with exactly one community report extracted from that same knowledge graph.
 
-
 ---Goal---
 Generate a response consisting of a list of key points that responds to the user's question, summarizing all relevant information in the given community report.
 
@@ -38,8 +37,6 @@ Your response should always contain following elements:
 - Query based response: A comprehensive and truthful response to the given user query, solely based on the provided context.
 - Importance Score: An integer score between 0-10 that indicates how important the point is in answering the user's question. An 'I don't know' type of response should have a score of 0.
 
-The response should be JSON formatted as follows:
-{{"response": "Description of point 1 [Data: Reports (report ids)]", "score": score_value}}
 """
 
 MAP_QUERY_PROMPT = """
@@ -49,11 +46,7 @@ MAP_QUERY_PROMPT = """
 ---User Question---
 {user_question}
 
----JSON Response---
-The json response formatted as follows:
-{{"response": "Description of point 1 [Data: Reports (report ids)]", "score": score_value}}
-
-response: 
+---Question Response & Context Relevance Score---
 """
 
 @observe()
@@ -65,9 +58,14 @@ def generate_response(client_query: str, community_report: dict):
         public=False
     )
 
-    llm = LLMSession(
+    # llm = LLMSession(
+    #     system_message=MAP_SYSTEM_PROMPT,
+    #     model_name="gemini-1.5-pro-001"
+    # )
+
+    llm_flash = LLMSession(
         system_message=MAP_SYSTEM_PROMPT,
-        model_name="gemini-1.5-pro-001"
+        model_name="gemini-1.5-flash-001"
     )
 
     response_schema = {
@@ -75,9 +73,11 @@ def generate_response(client_query: str, community_report: dict):
         "properties": {
             "response": {
                 "type": "string",
+                "description": "The response to the user question as raw string.",
             },
             "score": {
-                "type": "integer",
+                "type": "number",
+                "description": "The relevance score of the given community report context towards answering the user question [0.0, 10.0]",
             },
         },
         "required": ["response", "score"],
@@ -86,9 +86,12 @@ def generate_response(client_query: str, community_report: dict):
     query_prompt = MAP_QUERY_PROMPT.format(
         context_community_report=community_report, user_question=client_query)
 
-    response = llm.generate(client_query_string=query_prompt,
-                 response_schema=response_schema,
-                 response_mime_type="application/json")
+    # response = llm.generate(client_query_string=query_prompt,
+    #              response_schema=response_schema,
+    #              response_mime_type="application/json")
+
+    response = llm_flash.function_call_gen(client_query_string=query_prompt,
+                                     response_schema=response_schema)
     
     print(f"Response for Community: {community_report["title"]} & Query: {client_query}: {response}")
 
@@ -117,9 +120,10 @@ def store_in_fs(response: str, user_query: str, community_report: dict) -> None:
 
     # Parse the JSON response
     try:
+        response = response.replace("'", '"')
         response_dict = json.loads(response)
     except json.JSONDecodeError as e:
-        logging.error(f"Error decoding JSON response: {e}")
+        logging.error(f"Error {e} while decoding JSON response: {response}")
         return  # Exit early on error
 
     # Prepare data for Firestore
