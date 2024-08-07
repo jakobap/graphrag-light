@@ -26,11 +26,20 @@ from nosql_kg.firestore_kg import FirestoreKG
 
 from graphrag.KGraphQuery import GlobalQueryGCP
 from graphrag.IngestionSession import IngestionSession
-# from rsc.PreprocessingSession import PreprocessingSession
+from graphrag.PreprocessingSession import PreprocessingSession
 # from rsc.DeletionSession import DeletionSession
 
 secrets = dotenv_values(".env")
 credentials, _ = google.auth.load_credentials_from_file(secrets['GCP_CREDENTIAL_FILE'])
+
+fskg = FirestoreKG(
+        gcp_project_id=str(secrets["GCP_PROJECT_ID"]),
+        gcp_credential_file=str(secrets["GCP_CREDENTIAL_FILE"]),
+        firestore_db_id=str(secrets["FIRESTORE_DB_ID"]),
+        node_collection_id=str(secrets["NODE_COLL_ID"]),
+        edges_collection_id=str(secrets["EDGES_COLL_ID"]),
+        community_collection_id=str(secrets["COMM_COLL_ID"]),
+    )
 
 class DocPreview:
     def __init__(self, list_of_docs: list):
@@ -70,7 +79,7 @@ class DocPreview:
         st.image("./img/PDF_file_icon.png", width=50)
         # st.button('delete', key=f'delete_{doc_name}', on_click=delete_file, args=[doc_name])
 
-def main(client_query:str, model_name: str, uploaded_img_bytes=None) -> None:  
+def main(client_query:str, model_name: str) -> None:  
 
     with st.spinner('Processing... This might take a minute or two.'):
 
@@ -101,45 +110,44 @@ def main(client_query:str, model_name: str, uploaded_img_bytes=None) -> None:
     return None
 
 
-# def extract_filename_from_url(text):
-#   """
-#   Extracts the string between the last `/` and `.pdf` from a text.
+def extract_filename_from_url(text):
+  """
+  Extracts the string between the last `/` and `.pdf` from a text.
 
-#   Args:
-#     text: The text to extract from.
+  Args:
+    text: The text to extract from.
 
-#   Returns:
-#     The extracted string, or None if not found.
-#   """
-#   # Find the last occurrence of `&%`
-#   last_percent = text.rfind("/")
+  Returns:
+    The extracted string, or None if not found.
+  """
+  # Find the last occurrence of `&%`
+  last_percent = text.rfind("/")
 
-#   # Find the next occurrence of `.pdf`
-#   next_pdf = text.find(".pdf", last_percent)
+  # Find the next occurrence of `.pdf`
+  next_pdf = text.find(".pdf", last_percent)
 
-#   # Extract the substring if both patterns were found
-#   if last_percent != -1 and next_pdf != -1:
-#     return text[last_percent + 1:next_pdf]
-#   else:
-#     return text 
-
-
-# def get_current_files(bucket_name, secrets=secrets, credentials=credentials) -> list:
-#     bucket = storage.Client(project=secrets['GCP_PROJECT_ID'], credentials=credentials).bucket(bucket_name)
-
-#     print(list(bucket.list_blobs()))
-    
-#     files_with_links = [(extract_filename_from_url(blob.name), blob.generate_signed_url(expiration=datetime.timedelta(minutes=10))) for blob in bucket.list_blobs() if ".pdf" in str(blob.name)]    
-    
-#     return files_with_links
+  # Extract the substring if both patterns were found
+  if last_percent != -1 and next_pdf != -1:
+    return text[last_percent + 1:next_pdf]
+  else:
+    return text 
 
 
-# def upload_new_file(new_file:bytes, new_file_name:str) -> None:
-    
-#     preprocessing = PreprocessingSession()
-#     preprocessing(new_file_name=new_file_name, file_to_ingest=new_file, ingest_local_file=False, max_pages_per_file=15, ingest_pdf=True)
+def get_current_files(bucket_name, secrets=secrets, credentials=credentials) -> list:
+    bucket = storage.Client(project=secrets['GCP_PROJECT_ID'], credentials=credentials).bucket(bucket_name)
+    print(list(bucket.list_blobs()))
+    files_with_links = [(extract_filename_from_url(blob.name), blob.generate_signed_url(expiration=datetime.timedelta(minutes=10))) for blob in bucket.list_blobs() if ".pdf" in str(blob.name)]    
+    return files_with_links
 
-#     return None
+
+def upload_new_file(new_file:bytes, new_file_name:str) -> None:
+    preprocessing = PreprocessingSession(graph_db=fskg)
+    preprocessing(new_file_name=new_file_name,
+                  file_to_ingest=new_file, 
+                  ingest_local_file=False,
+                  max_pages_per_file=15,
+                  ingest_pdf=True)
+    return None
 
 
 # def delete_file(document_name:str) -> None:
@@ -158,24 +166,23 @@ st.header('Ingest data to your knowledge base.')
 
 st.markdown('**These pdf files are currently in your knowledge base.**')
 
-# current_files = get_current_files(bucket_name=secrets["RAW_PDFS_BUCKET_NAME"])
-# df = pd.DataFrame(current_files)
-# st.dataframe(df)
+current_files = get_current_files(bucket_name=secrets["RAW_PDFS_BUCKET_NAME"])
+df = pd.DataFrame(current_files)
+st.dataframe(df)
 
-# DocPreview(list_of_docs=current_files).render()
+DocPreview(list_of_docs=current_files).render()
 
-# st.markdown('**Upload a new PDF file for your knowledge base.**')
+st.markdown('**Upload a new PDF file for your knowledge base.**')
 
-# with st.form("file_upload_form"):
-#     uploaded_file = st.file_uploader("Choose a file")
+with st.form("file_upload_form"):
+    uploaded_file = st.file_uploader("Choose a file")
     
-#     button = st.form_submit_button('Upload', help=None, on_click=None, args=None, kwargs=None, type="primary", disabled=False, use_container_width=False)
+    button = st.form_submit_button('Upload', help=None, on_click=None, args=None, kwargs=None, type="primary", disabled=False, use_container_width=False)
 
-#     if button and uploaded_file is not None:
-#         upladed_file_name = uploaded_file.name
-#         uploaded_file_bytes = uploaded_file.getvalue()
-#         upload_new_file(new_file=uploaded_file_bytes, new_file_name=upladed_file_name)
-
+    if button and uploaded_file is not None:
+        upladed_file_name = uploaded_file.name
+        uploaded_file_bytes = uploaded_file.getvalue()
+        upload_new_file(new_file=uploaded_file_bytes, new_file_name=upladed_file_name)
 
 st.header('Ask a question.')
 st.caption('This Q&A demo will answer to questions only related to your knowledge base documents.')
@@ -184,9 +191,9 @@ with st.form("transcript_submission_form"):
 
     client_query = st.text_input("Question:")
 
-    model_name = str(st.selectbox('Which Model would you like to ask?', ('gemini-1.5-flash','gemini-1.5-pro'),placeholder='gemini-1.5-pro'))
+    # model_name = str(st.selectbox('Which Model would you like to ask?', ('gemini-1.5-flash','gemini-1.5-pro'),placeholder='gemini-1.5-pro'))
 
     button = st.form_submit_button('Ask', help=None, on_click=None, args=None, kwargs=None, type="primary", disabled=False, use_container_width=False)
 
     if button:
-        main(client_query=client_query, model_name=model_name)
+        main(client_query=client_query, model_name="model_name")
