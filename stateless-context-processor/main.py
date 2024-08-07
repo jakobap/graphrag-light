@@ -46,6 +46,8 @@ MAP_QUERY_PROMPT = """
 ---User Question---
 {user_question}
 
+Call extract_json_schema with the question response and context relevance score.
+
 ---Question Response & Context Relevance Score---
 """
 
