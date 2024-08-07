@@ -8,3 +8,4 @@ matplotlib==3.9.1
 langfuse==2.39.2
 graspologic==3.4.1
 google-cloud-pubsub==2.19.6
+streamlit==1.37.1
