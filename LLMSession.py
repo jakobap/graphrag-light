@@ -17,7 +17,7 @@ from dotenv import dotenv_values
 import base64
 from google.cloud import aiplatform
 import vertexai
-from vertexai.generative_models import GenerativeModel, Part, FinishReason, GenerationConfig
+from vertexai.generative_models import GenerativeModel, Part, FinishReason, GenerationConfig, SafetySetting
 import vertexai.preview.generative_models as generative_models
 from vertexai.language_models import TextEmbeddingInput, TextEmbeddingModel
 import json
@@ -36,9 +36,29 @@ class LLMSession:
         self.model_name = model_name
         self.system_message = system_message
         self.secrets = dotenv_values(".env")
+        vertexai.init(project=self.secrets["GCP_PROJECT_ID"], location=self.secrets["GCP_REGION"])
         self.model = GenerativeModel(
             self.model_name, system_instruction=[system_message])
         self.model_chat = self.model.start_chat()
+
+        self.safety_settings = [
+            SafetySetting(
+                category=SafetySetting.HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+                threshold=SafetySetting.HarmBlockThreshold.BLOCK_ONLY_HIGH
+            ),
+            SafetySetting(
+                category=SafetySetting.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+                threshold=SafetySetting.HarmBlockThreshold.BLOCK_ONLY_HIGH
+            ),
+            SafetySetting(
+                category=SafetySetting.HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+                threshold=SafetySetting.HarmBlockThreshold.BLOCK_ONLY_HIGH
+            ),
+            SafetySetting(
+                category=SafetySetting.HarmCategory.HARM_CATEGORY_HARASSMENT,
+                threshold=SafetySetting.HarmBlockThreshold.BLOCK_ONLY_HIGH
+            )
+        ]
 
     @observe(as_type="generation")
     def generate(
@@ -58,8 +78,9 @@ class LLMSession:
                 temperature=temperature,
                 top_p=top_p,
                 response_mime_type=response_mime_type,
-                response_schema=response_schema
+                response_schema=response_schema,
             ),
+            safety_settings=self.safety_settings,
             stream=False
         )
 
@@ -91,6 +112,7 @@ class LLMSession:
         response = self.model_chat.send_message(
             client_query_string,
             stream=False,
+            safety_settings=self.safety_settings,
             generation_config=generation_config)
 
         text_response = response.text  # type: ignore
