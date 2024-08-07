@@ -3,8 +3,7 @@ from html import entities
 from typing import Any
 
 from httpx import get
-from IngestionSession import IngestionSession
-from LLMSession import LLMSession
+from graphrag.LLMSession import LLMSession
 
 from nosql_kg.graph2nosql import NoSQLKnowledgeGraph
 import graphrag.prompts as prompts
@@ -42,8 +41,6 @@ class GraphExtractor:
 
         self.llm = LLMSession(system_message=self.graph_extraction_system,
                               model_name="gemini-1.5-pro-001")
-
-        self.ingestion = IngestionSession()
 
     @observe()
     def __call__(self, text_input: str, max_extr_rounds: int = 5) -> None:
@@ -445,7 +442,7 @@ class GraphExtractor:
                                                     findings=comm_report_dict["findings"],
                                                     community_nodes=c)
                 
-                fskg.store_community(community=comm_data)
+                kg.store_community(community=comm_data)
 
         return None
  
@@ -495,7 +492,7 @@ if __name__ == "__main__":
         community_collection_id=community_coll_id
     )
 
-    ingestion = IngestionSession()
+    # ingestion = IngestionSession()
     extractor = GraphExtractor(graph_db=fskg)
 
     # document_string = ingestion(
