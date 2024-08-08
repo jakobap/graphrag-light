@@ -74,7 +74,7 @@ class IngestionSession:
         extracted_graph = extractor(text_input=document_string, max_extr_rounds=1)
         extractor.generate_comm_reports(kg=self.graph_db)
         extractor.update_node_embeddings()
-        self.graph_db.visualize_graph()
+        self.graph_db.visualize_graph(filename="./visualize_kg.png")
 
         print("+++++ Graph Ingestion Done. +++++")
         return document_string
