@@ -32,7 +32,9 @@ import google.auth
 # from langchain.text_splitter import RecursiveCharacterTextSplitter
 
 from graphrag.GraphExtractor import GraphExtractor
-from nosql_kg.firestore_kg import NoSQLKnowledgeGraph
+from nosql_kg.graph2nosql import NoSQLKnowledgeGraph
+from nosql_kg.firestore_kg import FirestoreKG
+
 
 
 class IngestionSession:
@@ -191,7 +193,25 @@ if __name__ == "__main__":
     cwd = os.getcwd()
     print(cwd)
 
-    ingestion = IngestionSession()
+    secrets = dotenv_values(".env")
+
+    firestore_credential_file = str(secrets["GCP_CREDENTIAL_FILE"])
+    project_id = str(secrets["GCP_PROJECT_ID"])
+    database_id = str(secrets["FIRESTORE_DB_ID"])
+    node_coll_id = str(secrets["NODE_COLL_ID"])
+    edges_coll_id = str(secrets["EDGES_COLL_ID"])
+    community_coll_id = str(secrets["COMM_COLL_ID"])
+
+    fskg = FirestoreKG(
+        gcp_project_id=project_id,
+        gcp_credential_file=firestore_credential_file,
+        firestore_db_id=database_id,
+        node_collection_id=node_coll_id,
+        edges_collection_id=edges_coll_id,
+        community_collection_id=community_coll_id
+    )
+
+    ingestion = IngestionSession(graph_db=fskg)
 
     ingestion(
         new_file_name="./pdf_articles/Winners of Future Hamburg Award 2023 announced _ Hamburg News.pdf", ingest_local_file=True
