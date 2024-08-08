@@ -60,15 +60,15 @@ def generate_response(client_query: str, community_report: dict):
         public=False
     )
 
-    # llm = LLMSession(
-    #     system_message=MAP_SYSTEM_PROMPT,
-    #     model_name="gemini-1.5-pro-001"
-    # )
-
-    llm_flash = LLMSession(
+    llm = LLMSession(
         system_message=MAP_SYSTEM_PROMPT,
-        model_name="gemini-1.5-flash-001"
+        model_name="gemini-1.5-pro-001"
     )
+
+    # llm_flash = LLMSession(
+    #     system_message=MAP_SYSTEM_PROMPT,
+    #     model_name="gemini-1.5-flash-001"
+    # )
 
     response_schema = {
         "type": "object",
@@ -88,12 +88,12 @@ def generate_response(client_query: str, community_report: dict):
     query_prompt = MAP_QUERY_PROMPT.format(
         context_community_report=community_report, user_question=client_query)
 
-    # response = llm.generate(client_query_string=query_prompt,
-    #              response_schema=response_schema,
-    #              response_mime_type="application/json")
+    response = llm.generate(client_query_string=query_prompt,
+                 response_schema=response_schema,
+                 response_mime_type="application/json")
 
-    response = llm_flash.function_call_gen(client_query_string=query_prompt,
-                                     response_schema=response_schema)
+    # response = llm_flash.function_call_gen(client_query_string=query_prompt,
+    #                                  response_schema=response_schema)
     
     print(f"Response for Community: {community_report["title"]} & Query: {client_query}: {response}")
 
