@@ -172,6 +172,9 @@ st.dataframe(df)
 
 DocPreview(list_of_docs=current_files).render()
 
+st.header('Knowledge Graph Overview')
+st.image("./visualize_kg.png")
+
 st.markdown('**Upload a new PDF file for your knowledge base.**')
 
 with st.form("file_upload_form"):
