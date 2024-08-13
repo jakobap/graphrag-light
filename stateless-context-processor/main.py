@@ -18,6 +18,7 @@ from firebase_admin import firestore
 import google.auth
 
 
+
 app = FastAPI()
 
 """Prompt templates for global search pipe."""
