@@ -14,6 +14,9 @@ except:
     from nosql_kg.firestore_kg import FirestoreKG
     from nosql_kg import data_model
 
+from abc import abstractmethod
+from async_utils.mq import PubSubMQ
+
 from cgitb import text
 from html import entities
 from typing import Any
@@ -458,7 +461,7 @@ class GraphExtractor:
                 kg.store_community(community=comm_data)
 
         return None
- 
+
     def update_node_embeddings(self) -> None: 
 
         node_embeddings = self.graph_db.get_node2vec_embeddings()
@@ -484,6 +487,38 @@ class GraphExtractor:
 
         return None
 
+    @abstractmethod
+    def async_generate_comm_reports(self, kg: NoSQLKnowledgeGraph) -> None:
+        """Method for async generation of community reports for e2e latency optimization."""
+        pass
+
+
+class GCPGraphExtractor:
+    def __init__(self):
+        super().__init__()
+        self.secrets = dotenv_values(".env")
+
+    def async_generate_comm_reports(self, kg: NoSQLKnowledgeGraph) -> None:
+        """Method for async generation of community reports for e2e latency optimization."""
+
+        langfuse_context.update_current_trace(
+                name="Async Community Report Generation",
+                public=False
+            )
+
+        # clean graph off all nodes without any edges
+        kg.clean_zerodegree_nodes()
+
+        #generate communities based on cleaned graph
+        comms = kg.get_louvain_communities()
+
+        for c in comms:
+            pubsub_mq = PubSubMQ(pubsub_topic_id=str(self.secrets["COMMUNITY_WL_PUBSUB"]))
+            pubsub_mq.send_to_mq(message={"community_record": c})
+
+        print(f"{len(comms)} Community report requests submitted.")
+        return None
+    
 
 if __name__ == "__main__":
 
