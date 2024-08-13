@@ -36,7 +36,6 @@ from nosql_kg.graph2nosql import NoSQLKnowledgeGraph
 from nosql_kg.firestore_kg import FirestoreKG
 
 
-
 class IngestionSession:
     def __init__(self, graph_db: NoSQLKnowledgeGraph):
         self.secrets = dotenv_values(".env")

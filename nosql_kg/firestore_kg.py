@@ -464,6 +464,22 @@ class FirestoreKG(NoSQLKnowledgeGraph):
     
         return [n.to_dict() for n in nn]
 
+    def clean_zerodegree_nodes(self) -> None:
+        """Removes all nodes with degree 0."""
+        nodes_to_remove = []
+
+        # 1. Iterate through all nodes to find those with degree 0
+        nodes_ref = self.db.collection(self.node_coll_id).stream()
+        for doc in nodes_ref:
+            node_data = doc.to_dict()
+            if len(node_data.get('edges_to', [])) + len(node_data.get('edges_from', [])) == 0:
+                nodes_to_remove.append(doc.id)
+
+        # 2. Remove the identified nodes
+        for node_uid in nodes_to_remove:
+            self.remove_node(node_uid)
+        return None
+    
 if __name__ == "__main__":
     import os
     from dotenv import dotenv_values
@@ -488,11 +504,14 @@ if __name__ == "__main__":
         community_collection_id=community_coll_id
     )
 
-    node = fskg.get_node(node_uid="2022 IRANIAN PROTESTS")
+    # node = fskg.get_node(node_uid="2022 IRANIAN PROTESTS")
 
-    nn = fskg.get_nearest_neighbors(node.embedding)
+    # nn = fskg.get_nearest_neighbors(node.embedding)
 
-    for n in nn:
-        print(n["node_uid"])
+    fskg.clean_zerodegree_nodes()
+    fskg.visualize_graph()
+
+    # for n in nn:
+    #     print(n["node_uid"])
 
     print("Hello World!")

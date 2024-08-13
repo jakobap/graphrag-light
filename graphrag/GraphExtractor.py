@@ -1,15 +1,24 @@
+try:
+    from LLMSession import LLMSession
+    import prompts as prompts
+
+    from nosql_kg.graph2nosql import NoSQLKnowledgeGraph
+    from nosql_kg.firestore_kg import FirestoreKG
+    from nosql_kg import data_model
+
+except:
+    from graphrag.LLMSession import LLMSession
+    import graphrag.prompts as prompts
+
+    from nosql_kg.graph2nosql import NoSQLKnowledgeGraph
+    from nosql_kg.firestore_kg import FirestoreKG
+    from nosql_kg import data_model
+
 from cgitb import text
 from html import entities
 from typing import Any
 
 from httpx import get
-from graphrag.LLMSession import LLMSession
-
-from nosql_kg.graph2nosql import NoSQLKnowledgeGraph
-import graphrag.prompts as prompts
-from nosql_kg.firestore_kg import FirestoreKG
-from nosql_kg import data_model
-
 import networkx as nx
 from google.cloud.firestore_v1.vector import Vector
 
@@ -353,6 +362,10 @@ class GraphExtractor:
         llm = LLMSession(system_message=prompts.COMMUNITY_REPORT_SYSTEM,
                          model_name="gemini-1.5-pro-001")
 
+        # clean graph off all nodes without any edges
+        kg.clean_zerodegree_nodes()
+
+        #generate communities based on cleaned graph
         comms = kg.get_louvain_communities()
 
         for c in comms:
@@ -520,9 +533,9 @@ if __name__ == "__main__":
     # )
     # extracted_graph = extractor(text_input=document_string, max_extr_rounds=1)
 
-    fskg.visualize_graph("visualized.png")
+    # fskg.visualize_graph("visualized.png")
 
-    # extractor.generate_comm_reports(kg=fskg)
+    extractor.generate_comm_reports(kg=fskg)
 
     extractor.update_node_embeddings()
 

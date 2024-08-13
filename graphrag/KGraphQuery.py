@@ -92,7 +92,7 @@ class KGraphGlobalQuery:
 
         # generate & return final response based on final context community repors and nodes.
         final_response_system = prompts.GLOBAL_SEARCH_REDUCE_SYSTEM.format(
-            response_type="Detailled and wholistic in academic style analysis of the given information in 2-3 paragraphs and up to 10 sentences.")
+            response_type="Detailled and wholistic in academic style analysis of the given information in at least 8-10 sentences across 2-3 paragraphs.")
         
         langfuse_context.update_current_trace(
                 name="Global Query Reduce",
@@ -253,7 +253,7 @@ class GlobalQueryGCP(KGraphGlobalQuery):
             doc_snapshot = doc_ref.get()
             if doc_snapshot.exists:
                 num_stored_responses = len(doc_snapshot.to_dict().keys())
-                if num_stored_responses >= len(comm_list) * 0.75:
+                if num_stored_responses >= len(comm_list) * 0.9:
                     responses = doc_snapshot.to_dict()
                     comms = responses.keys()
                     return [IntermediateCommRespose.from_dict(responses[c]) for c in comms]

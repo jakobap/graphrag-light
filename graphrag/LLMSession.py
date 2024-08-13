@@ -12,6 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+try: 
+    import prompts
+except:
+    import graphrag.prompts as prompts
+
 from optparse import Option
 from dotenv import dotenv_values
 import base64
@@ -22,7 +27,6 @@ import vertexai.preview.generative_models as generative_models
 from vertexai.language_models import TextEmbeddingInput, TextEmbeddingModel
 import json
 
-import graphrag.prompts as prompts
 
 from typing import List, Optional, Dict, Any
 
