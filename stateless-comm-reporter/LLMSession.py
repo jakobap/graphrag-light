@@ -119,7 +119,8 @@ class LLMSession:
 
         self._langfuse_observation_meta(observation_name="Chat Generate",
                                         query_string=client_query_string,
-                                        vertex_model_response=response)
+                                        vertex_model_response=response,
+                                        model_response_str=text_response)
 
         return text_response
 
@@ -139,7 +140,7 @@ class LLMSession:
     def embed_text(self, text: str,
                    task: str = "RETRIEVAL_DOCUMENT",
                    model_name: str = "text-embedding-004",
-                   dimensionality: Optional[int] = 768) -> List[float]:
+                   dimensionality: Optional[int] = 768) -> List:
         """Embeds texts with a pre-trained, foundational model."""
 
         model = TextEmbeddingModel.from_pretrained(model_name)

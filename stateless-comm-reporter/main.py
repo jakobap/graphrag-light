@@ -234,7 +234,7 @@ async def trigger_analysis(request: Request):
             kg=fskg
         )
 
-        store_in_fs(response=response_json,
+        store_in_fs(response=str(response_json),
                     user_query=message_dict["user_query"], community_report=message_dict["community_report"])
 
         print("analysis done")
@@ -246,7 +246,7 @@ async def trigger_analysis(request: Request):
         return JSONResponse(content={"message": msg}, status_code=500)
 
 
-# if __name__ == "__main__":
+if __name__ == "__main__":
 
 #     sample_query = "Who are some of the most notable individuals of us american politics in the 21century"
 #     sample_msg = {'community_report': {'title': 'Joe Biden, Kamala Harris, and the Democratic Party', 'community_nodes': ['KAMALA HARRIS', 'DEMOCRATIC PARTY', 'JOE BIDEN'], 'summary': "This community centers around the political figures of Joe Biden and Kamala Harris, and their relationship to the Democratic Party in the context of the 2024 US Presidential election. Joe Biden, the previous president, withdrew from the race, leading Kamala Harris to become the party's nominee.", 'document_id': None, 'community_uid': None, 'community_embedding': [], 'rating': 8.5, 'rating_explanation': 'The impact severity is high due to the significant influence these individuals and the Democratic Party hold in the US political landscape, particularly during a presidential election year.', 'findings': [{'explanation': "Joe Biden, the 46th US President, withdrew from the 2024 presidential race due to age, health, and political reasons. This decision significantly impacted the Democratic Party's trajectory for the election. [Data: Entities ('JOE BIDEN'), ('DEMOCRATIC PARTY')]", 'summary': "Joe Biden's Withdrawal and its Impact"}, {'explanation': "Following Biden's withdrawal, Kamala Harris, the current US Vice President, became the Democratic Party's nominee for president. This shift in candidacy places Harris in a prominent position within the party and the election. [Data: Entities ('KAMALA HARRIS'), ('DEMOCRATIC PARTY')]", 'summary': "Kamala Harris's Nomination"}, {'explanation': "The Democratic Party, as one of the two major political parties in the US, plays a crucial role in the presidential election. The party's dynamics and decisions significantly impact the country's political landscape. [Data: Entities ('DEMOCRATIC PARTY')]", 'summary': "The Democratic Party's Role"}]}, 'user_query': 'Who are some of the most notable individuals of us american politics in the 21century '}
