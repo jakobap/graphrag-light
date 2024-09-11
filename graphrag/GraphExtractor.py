@@ -15,11 +15,12 @@ except:
     from nosql_kg import data_model
 
 from abc import abstractmethod
-from async_utils.mq import PubSubMQ
+from .async_utils.mq import PubSubMQ
 
 from cgitb import text
 from html import entities
 from typing import Any
+import time
 
 from httpx import get
 import networkx as nx
@@ -493,10 +494,50 @@ class GraphExtractor:
         pass
 
 
-class GCPGraphExtractor:
-    def __init__(self):
-        super().__init__()
+class GCPGraphExtractor(GraphExtractor):
+    def __init__(self, graph_db):
+        super().__init__(graph_db)
         self.secrets = dotenv_values(".env")
+
+    # def _check_shared_state(self, user_query: str,
+    #                         max_attempts: int = 6,
+    #                         sleep_time: int = 15) -> list[IntermediateCommRespose]:
+    #     """
+    #     Periodically checks for the existence of a document with user_query as id. 
+
+    #     Args:
+    #         user_query (str): The ID of the document to look for.
+    #         max_attempts (int, optional): Maximum number of attempts to check. Defaults to 10.
+    #         sleep_time (int, optional): Time to sleep between attempts in seconds. Defaults to 2.
+
+    #     Returns:
+    #         Dict: The document data if found, otherwise raises timeout error.
+    #     """
+    #     query_db = firestore.Client(project=self.project_id,  # type: ignore
+    #                           credentials=self.gcp_credentials,
+    #                           database=str(self.secrets["QUERY_FS_DB_ID"]))
+        
+    #     comm_list = self.fskg.list_communities()
+
+    #     time.sleep(5)
+    #     for attempt in range(max_attempts):
+    #         doc_ref = query_db.collection(
+    #             str(self.secrets["QUERY_FS_INT__RESPONSE_COLL"])).document(user_query)
+    #         doc_snapshot = doc_ref.get()
+    #         if doc_snapshot.exists:
+    #             num_stored_responses = len(doc_snapshot.to_dict().keys())
+    #             if num_stored_responses >= len(comm_list) * 0.9:
+    #                 responses = doc_snapshot.to_dict()
+    #                 comms = responses.keys()
+    #                 return [IntermediateCommRespose.from_dict(responses[c]) for c in comms]
+    #             else:
+    #                 print(f"Attempt {attempt+1}/{max_attempts}: Document not found, sleeping for {sleep_time} seconds...")
+    #                 time.sleep(sleep_time)
+    #         else:
+    #             print(f"Attempt {attempt+1}/{max_attempts}: Document not found, sleeping for {sleep_time} seconds...")
+    #             time.sleep(sleep_time)
+
+    #     raise TimeoutError(f"Document with ID '{user_query}' not found after {max_attempts} attempts.")
 
     def async_generate_comm_reports(self, kg: NoSQLKnowledgeGraph) -> None:
         """Method for async generation of community reports for e2e latency optimization."""
@@ -514,7 +555,7 @@ class GCPGraphExtractor:
 
         for c in comms:
             pubsub_mq = PubSubMQ(pubsub_topic_id=str(self.secrets["COMMUNITY_WL_PUBSUB"]))
-            pubsub_mq.send_to_mq(message={"community_record": c})
+            pubsub_mq.send_to_mq(message={"community_record": str(c)})
 
         print(f"{len(comms)} Community report requests submitted.")
         return None
@@ -541,7 +582,8 @@ if __name__ == "__main__":
     )
 
     # ingestion = IngestionSession()
-    extractor = GraphExtractor(graph_db=fskg)
+    # extractor = GraphExtractor(graph_db=fskg)
+    gcpextractor = GCPGraphExtractor(graph_db=fskg)
 
     # document_string = ingestion(
     #     new_file_name="./pdf_articles/Winners of Future Hamburg Award 2023 announced _ Hamburg News.pdf", ingest_local_file=True
@@ -570,9 +612,10 @@ if __name__ == "__main__":
 
     # fskg.visualize_graph("visualized.png")
 
-    extractor.generate_comm_reports(kg=fskg)
+    # extractor.generate_comm_reports(kg=fskg)
+    gcpextractor.async_generate_comm_reports(kg=fskg)
 
-    extractor.update_node_embeddings()
+    gcpextractor.update_node_embeddings()
 
     # node_embeddings = fskg.get_node2vec_embeddings()
 
