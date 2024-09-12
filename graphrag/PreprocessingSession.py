@@ -86,11 +86,4 @@ class PreprocessingSession:
 
 
 if __name__ == "__main__":
-
-    with open("../woher-kommen-bekannte-markennamen.pdf", "rb") as f:
-        file_bytes = f.read()
-        preprocessing = PreprocessingSession()
-        preprocessing(new_file_name='woher-kommen-bekannte-markennamen.pdf',
-                      file_to_ingest=file_bytes, ingest_local_file=False, max_pages_per_file=15)
-
     print("Hello world")

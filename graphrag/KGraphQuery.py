@@ -174,6 +174,7 @@ class KGraphGlobalQuery:
         )
         return sorted_responses[:max_responses]
 
+
 class GlobalQueryGCP(KGraphGlobalQuery):
     def __init__(self, secrets: dict, fskg: FirestoreKG) -> None:
         super().__init__()
