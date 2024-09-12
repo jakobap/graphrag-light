@@ -1,7 +1,7 @@
 
 from graphrag.LLMSession import LLMSession
 import graphrag.prompts as prompts
-from graphrag.GraphExtractor import GraphExtractor
+from graphrag.GraphExtractor import GCPGraphExtractor, GraphExtractor
 
 from nosql_kg.graph2nosql import NoSQLKnowledgeGraph
 from nosql_kg.firestore_kg import FirestoreKG
@@ -41,10 +41,11 @@ if __name__ == "__main__":
     )
 
     # ingestion = IngestionSession()
-    extractor = GraphExtractor(graph_db=fskg)
+    # extractor = GraphExtractor(graph_db=fskg)
+    # extractor.generate_comm_reports(kg=fskg)
+    # extractor.update_node_embeddings()
 
-    extractor.generate_comm_reports(kg=fskg)
-
-    extractor.update_node_embeddings()
+    gcpextractor = GCPGraphExtractor(graph_db=fskg)
+    gcpextractor.async_generate_comm_reports(kg=fskg)
 
     print("Hello World!")
