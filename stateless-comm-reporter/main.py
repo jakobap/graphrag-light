@@ -204,12 +204,12 @@ async def trigger_analysis(request: Request):
     os.environ["LANGFUSE_HOST"] = "https://cloud.langfuse.com"
 
     fskg = firestore_kg.FirestoreKG(
-        gcp_project_id=str(secrets["project_id"]),
-        gcp_credential_file=str(secrets["firestore_credential_file"]),
-        firestore_db_id=str(secrets["database_id"]),
-        node_collection_id=str(secrets["node_coll_id"]),
-        edges_collection_id=str(secrets["edges_coll_id"]),
-        community_collection_id=str(secrets["community_coll_id"])
+        gcp_project_id=str(secrets["GCP_PROJECT_ID"]),
+        gcp_credential_file=str(secrets["GCP_CREDENTIAL_FILE"]),
+        firestore_db_id=str(secrets["FIRESTORE_DB_ID"]),
+        node_collection_id=str(secrets["NODE_COLL_ID"]),
+        edges_collection_id=str(secrets["EDGES_COLL_ID"]),
+        community_collection_id=str(secrets["COMM_COLL_ID"])
     )
 
     try:
@@ -230,11 +230,8 @@ async def trigger_analysis(request: Request):
             kg=fskg
         )
 
-        store_in_fs(response=str(response_json),
-                    user_query=message_dict["user_query"], community_report=message_dict["community_report"])
-
         print("analysis done")
-        return JSONResponse(content={"message": "File analysis completed successfully!"}, status_code=200)
+        return response_json
     except Exception as e:
         msg = f"Something went wrong during file analysis: {e}"
         logging.error(msg)
