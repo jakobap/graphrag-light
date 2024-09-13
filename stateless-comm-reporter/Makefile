@@ -15,7 +15,7 @@ init:
 build:
 	gcloud builds submit . \
 		--tag $$(gcloud config get-value artifacts/location)-docker.pkg.dev/${GCP_PROJECT_ID}/graph-rag-repo/stateless-comm-reporter-image:latest
-
+		
 deploy:
 	gcloud run deploy stateless-comm-reporter-service \
 		--image europe-west1-docker.pkg.dev/${GCP_PROJECT_ID}/graph-rag-repo/stateless-comm-reporter-image:latest \
