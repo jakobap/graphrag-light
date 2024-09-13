@@ -7,6 +7,7 @@ google-cloud-documentai==2.29.2
 google-auth==2.32.0
 google-api-python-client==2.129.0
 firebase-admin==6.5.0
+networkx==3.3
 
--e ./graph2nosql  # Install graph2nosql in editable mode
+-e graph2nosql  
 
