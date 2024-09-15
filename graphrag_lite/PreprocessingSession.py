@@ -14,8 +14,8 @@
 
 
 from numpy import gradient
-from graphrag.IngestionSession import IngestionSession
-from nosql_kg.graph2nosql import NoSQLKnowledgeGraph
+from graphrag_lite.IngestionSession import IngestionSession
+from graph2nosql.graph2nosql.graph2nosql import NoSQLKnowledgeGraph
 from dotenv import dotenv_values
 
 from io import BytesIO

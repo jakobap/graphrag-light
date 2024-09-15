@@ -31,9 +31,9 @@ import google.auth
 # from langchain.docstore.document import Document
 # from langchain.text_splitter import RecursiveCharacterTextSplitter
 
-from graphrag.GraphExtractor import GraphExtractor
-from nosql_kg.graph2nosql import NoSQLKnowledgeGraph
-from nosql_kg.firestore_kg import FirestoreKG
+from graphrag_lite.GraphExtractor import GraphExtractor, GCPGraphExtractor
+from graph2nosql.graph2nosql.graph2nosql import NoSQLKnowledgeGraph
+from graph2nosql.databases.firestore_kg import FirestoreKG
 
 
 class IngestionSession:
@@ -71,9 +71,10 @@ class IngestionSession:
             ingest_local_file=ingest_local_file)
         
         print("+++++ Extracting Graph Data +++++")
-        extractor = GraphExtractor(graph_db=self.graph_db)
+        extractor = GCPGraphExtractor(graph_db=self.graph_db)
         extracted_graph = extractor(text_input=document_string, max_extr_rounds=1)
-        extractor.generate_comm_reports(kg=self.graph_db)
+        # extractor.generate_comm_reports(kg=self.graph_db)
+        extractor.async_generate_comm_reports(kg=self.graph_db)
         extractor.update_node_embeddings()
         self.graph_db.visualize_graph(filename="./visualize_kg.png")
 

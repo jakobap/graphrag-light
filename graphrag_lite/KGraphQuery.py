@@ -15,11 +15,11 @@ from firebase_admin import firestore
 
 from langfuse.decorators import observe, langfuse_context
 
-from nosql_kg.firestore_kg import FirestoreKG
-from nosql_kg import data_model
+from graph2nosql.databases.firestore_kg import FirestoreKG
+from graph2nosql.datamodel import data_model
 
-import graphrag.prompts as prompts
-from graphrag.LLMSession import LLMSession
+import graphrag_lite.prompts as prompts
+from graphrag_lite.LLMSession import LLMSession
 
 
 @dataclass

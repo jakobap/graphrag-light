@@ -1,18 +1,10 @@
-try:
-    from LLMSession import LLMSession
-    import prompts as prompts
 
-    from nosql_kg.graph2nosql import NoSQLKnowledgeGraph
-    from nosql_kg.firestore_kg import FirestoreKG
-    from nosql_kg import data_model
+from graphrag_lite.LLMSession import LLMSession
+import graphrag_lite.prompts as prompts
 
-except:
-    from graphrag_lite.LLMSession import LLMSession
-    import graphrag_lite.prompts as prompts
-
-    from graph2nosql.graph2nosql.graph2nosql import NoSQLKnowledgeGraph
-    from graph2nosql.databases.firestore_kg import FirestoreKG
-    from graph2nosql.datamodel import data_model
+from graph2nosql.graph2nosql.graph2nosql import NoSQLKnowledgeGraph
+from graph2nosql.databases.firestore_kg import FirestoreKG
+from graph2nosql.datamodel import data_model
 
 from abc import abstractmethod
 from .async_utils.mq import PubSubMQ
