@@ -19,7 +19,7 @@ from firebase_admin import firestore
 
 import google.auth
 
-from graph2nosql.graph2nosql.graph2nosql import NoSQLKnowledgeGraph   
+from graph2nosql.graph2nosql.graph2nosql import NoSQLKnowledgeGraph
 from graph2nosql.databases import firestore_kg
 from graph2nosql.datamodel import data_model
 
@@ -32,166 +32,107 @@ def generate_response(c, kg: NoSQLKnowledgeGraph):
 
     print(f"Unwrapped Community Record: {c}")
 
-    try:
-        langfuse_context.update_current_trace(
-            name="Async Community Report Generation",
-            public=False
-        )
-        
-        llm = LLMSession(system_message=prompts.COMMUNITY_REPORT_SYSTEM,
-                            model_name="gemini-1.5-pro-001")
+    langfuse_context.update_current_trace(
+        name="Async Community Report Generation",
+        public=False
+    )
 
-        comm_nodes = []
-        comm_edges = []
+    llm = LLMSession(system_message=prompts.COMMUNITY_REPORT_SYSTEM,
+                     model_name="gemini-1.5-pro-001")
 
-        for n in c:
-            node = kg.get_node(n)
-            node_edges_to = [{"edge_source_entity": kg.get_edge(source_uid=node.node_uid,
-                                                                target_uid=e),
-                            "edge_target_entity": kg.get_edge(source_uid=node.node_uid,
-                                                                target_uid=e),
-                            "edge_description": kg.get_edge(source_uid=node.node_uid,
-                                                            target_uid=e)} for e in node.edges_to]
+    comm_nodes = []
+    comm_edges = []
 
-            node_edges_from = [{"edge_source_entity": kg.get_edge(source_uid=e,
-                                                                target_uid=node.node_uid),
+    for n in c:
+        node = kg.get_node(n)
+        node_edges_to = [{"edge_source_entity": kg.get_edge(source_uid=node.node_uid,
+                                                            target_uid=e),
+                          "edge_target_entity": kg.get_edge(source_uid=node.node_uid,
+                                                            target_uid=e),
+                          "edge_description": kg.get_edge(source_uid=node.node_uid,
+                                                          target_uid=e)} for e in node.edges_to]
+
+        node_edges_from = [{"edge_source_entity": kg.get_edge(source_uid=e,
+                                                              target_uid=node.node_uid),
                             "edge_target_entity": kg.get_edge(source_uid=e,
-                                                                target_uid=node.node_uid),
-                                "edge_description": kg.get_edge(source_uid=e,
-                                                                target_uid=node.node_uid)} for e in node.edges_from]
+                                                              target_uid=node.node_uid),
+                            "edge_description": kg.get_edge(source_uid=e,
+                                                            target_uid=node.node_uid)} for e in node.edges_from]
 
-            node_data = {"entity_id": node.node_title,
-                        "entity_type": node.node_type,
-                        "entity_description": node.node_description}
+        node_data = {"entity_id": node.node_title,
+                     "entity_type": node.node_type,
+                     "entity_description": node.node_description}
 
-            comm_nodes.append(node_data)
-            comm_edges.extend(node_edges_to)
-            comm_edges.extend(node_edges_from)
+        comm_nodes.append(node_data)
+        comm_edges.extend(node_edges_to)
+        comm_edges.extend(node_edges_from)
 
-            response_schema = {
-                "type": "object",
-                "properties": {
-                    "title": {
-                        "type": "string"
-                    },
-                    "summary": {
-                        "type": "string"
-                    },
-                    "rating": {
-                        "type": "int"
-                    },
-                    "rating_explanation": {
-                        "type": "string"
-                    },
-                    "findings": {
-                        "type": "array",
-                        "items": {
-                            "type": "object",
-                            "properties": {
-                                "summary": {
-                                    "type": "string"
-                                },
-                                "explanation": {
-                                    "type": "string"
-                                }
-                            },
-                            # Ensure both fields are present in each finding
-                            "required": ["summary", "explanation"]
-                        }
-                    }
+        response_schema = {
+            "type": "object",
+            "properties": {
+                "title": {
+                    "type": "string"
                 },
-                # List required fields at the top level
-                "required": ["title", "summary", "rating", "rating_explanation", "findings"]
-            }
+                "summary": {
+                    "type": "string"
+                },
+                "rating": {
+                    "type": "int"
+                },
+                "rating_explanation": {
+                    "type": "string"
+                },
+                "findings": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "summary": {
+                                "type": "string"
+                            },
+                            "explanation": {
+                                "type": "string"
+                            }
+                        },
+                        # Ensure both fields are present in each finding
+                        "required": ["summary", "explanation"]
+                    }
+                }
+            },
+            # List required fields at the top level
+            "required": ["title", "summary", "rating", "rating_explanation", "findings"]
+        }
 
-            comm_report = llm.generate(client_query_string=prompts.COMMUNITY_REPORT_QUERY.format(
-                entities=comm_nodes,
-                relationships=comm_edges,
-                response_mime_type="application/json",
-                response_schema=response_schema
-            ))
+    comm_report = llm.generate(client_query_string=prompts.COMMUNITY_REPORT_QUERY.format(
+        entities=comm_nodes,
+        relationships=comm_edges,
+        response_mime_type="application/json",
+        response_schema=response_schema
+    ))
 
-            comm_report_dict = llm.parse_json_response(comm_report)
+    comm_report_dict = llm.parse_json_response(comm_report)
 
-            if comm_report_dict == {}:
-                comm_data = data_model.CommunityData(title=str(c),
-                                                    summary="",
-                                                    rating=0,
-                                                    rating_explanation="",
-                                                    findings=[{}],
-                                                    community_nodes=c)
-            else:
-                comm_data = data_model.CommunityData(title=comm_report_dict["title"],
-                                                    summary=comm_report_dict["summary"],
-                                                    rating=comm_report_dict["rating"],
-                                                    rating_explanation=comm_report_dict["rating_explanation"],
-                                                    findings=comm_report_dict["findings"],
-                                                    community_nodes=c)
+    if comm_report_dict == {}:
+        comm_data = data_model.CommunityData(title=str(c),
+                                             summary="",
+                                             rating=0,
+                                             rating_explanation="",
+                                             findings=[{}],
+                                             community_nodes=c)
+    else:
+        comm_data = data_model.CommunityData(title=comm_report_dict["title"],
+                                             summary=comm_report_dict["summary"],
+                                             rating=comm_report_dict["rating"],
+                                             rating_explanation=comm_report_dict["rating_explanation"],
+                                             findings=comm_report_dict["findings"],
+                                             community_nodes=c)
 
-                kg.store_community(community=comm_data)
-
-        langfuse_context.flush()
-    except Exception as e:
-        msg = f"Something went wrong during report generation for community: {c} with error: {e}"
-        logging.error(msg)
-        traceback.print_exc()
-        return JSONResponse(content={"message": msg}, status_code=500)
-
-def store_in_fs(response: str, user_query: str, community_report: dict) -> None:
-    """
-    Stores the LLM response in Firestore.
-
-    Args:
-        response (str): The JSON formatted LLM response.
-        user_query (str): The original user query.
-        community_report (dict): The community report used for the response.
-    """
-    secrets = dotenv_values(".env")
-    gcp_credentials, project_id = google.auth.load_credentials_from_file(
-        str(secrets["GCP_CREDENTIAL_FILE"]))
-
-    db = firestore.Client(project=project_id,  # type: ignore
-                          credentials=gcp_credentials,
-                          database=str(secrets["QUERY_FS_DB_ID"]))
-
-    # Extract community title for structuring data
-    community_title = community_report.get("title", "Unknown Community")
-
-    # Parse the JSON response
-    try:
-        # response = response.replace("'", '"')
-        response_dict = json.loads(response)
-    except json.JSONDecodeError as e:
-        logging.error(f"Error {e} while decoding JSON response: {response}")
-        return  # Exit early on error
-
-    # Prepare data for Firestore
-    refreshed_data = {
-        "community": community_title,
-        "response": response_dict.get("response", ""),
-        "score": response_dict.get("score", 0)
-    }
-
-    # Get a reference to the document (using user_query as key)
-    doc_ref = db.collection(secrets["QUERY_FS_INT__RESPONSE_COLL"]).document(
-        user_query)  # Use collection ID from .env
-
-    # Get the existing data if any
-    doc_snapshot = doc_ref.get()
-    existing_data = doc_snapshot.to_dict() if doc_snapshot.exists else {}
-
-    existing_data[community_title] = refreshed_data
-
-    # Update the document with the new list
-    doc_ref.set(existing_data, merge=True)
-
-    logging.info(f"Stored response for query '{user_query}' and community '{
-                 community_title}' in Firestore.")
-    print("saving in fs done")
+    langfuse_context.flush()
+    return comm_data
 
 
 @app.get("/helloworld")
-async def helloworld():
+def helloworld():
     return {"message": "Hello World"}
 
 
@@ -219,7 +160,8 @@ async def trigger_analysis(request: Request):
     try:
         payload = await request.body()
         message_dict = json.loads(payload.decode())
-        print(f"Received envelope at /receive_analysis_request: {message_dict}")
+        print(
+            f"Received envelope at /receive_analysis_request: {message_dict}")
 
         community_record = ast.literal_eval(message_dict["community_record"])
         print(community_record)
@@ -232,15 +174,17 @@ async def trigger_analysis(request: Request):
     print(f"Received Pub/Sub message for Analysis: {message_dict}")
 
     try:
-        generate_response(
+        comm_report = generate_response(
             c=community_record,
             kg=fskg
         )
 
-        print("analysis done")
+        fskg.store_community(community=comm_report)
+
+        print("comm report done")
         return JSONResponse(content={"message": "File analysis completed successfully!"}, status_code=200)
     except Exception as e:
-        msg = f"Something went wrong during file analysis: {e}"
+        msg = f"Something went wrong during comm reporting: {e}"
         logging.error(msg)
         traceback.print_exc()
         return JSONResponse(content={"message": msg}, status_code=500)
