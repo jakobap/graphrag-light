@@ -51,9 +51,9 @@ class GraphExtractor:
     def __call__(self, text_input: str, max_extr_rounds: int = 5) -> None:
 
         langfuse_context.update_current_trace(
-                name="Graph Extractor",
-                public=False
-            )
+            name="Graph Extractor",
+            public=False
+        )
 
         input_prompt = self._construct_extractor_input(input_text=text_input)
 
@@ -102,7 +102,7 @@ class GraphExtractor:
         self,
         results: dict[int, str],
         join_descriptions: bool = True
-        ) -> None:
+    ) -> None:
         """Parse the result string to create an undirected unipartite graph.
 
         Args:
@@ -226,7 +226,7 @@ class GraphExtractor:
         self,
         results: dict[int, str],
         join_descriptions: bool = True
-        ) -> nx.Graph:
+    ) -> nx.Graph:
         """Parse the result string to create an undirected unipartite graph.
 
         Args:
@@ -351,9 +351,9 @@ class GraphExtractor:
     def generate_comm_reports(self, kg: NoSQLKnowledgeGraph) -> None:
 
         langfuse_context.update_current_trace(
-                name="Community Report Generation",
-                public=False
-            )
+            name="Community Report Generation",
+            public=False
+        )
 
         llm = LLMSession(system_message=prompts.COMMUNITY_REPORT_SYSTEM,
                          model_name="gemini-1.5-pro-001")
@@ -361,7 +361,7 @@ class GraphExtractor:
         # clean graph off all nodes without any edges
         kg.clean_zerodegree_nodes()
 
-        #generate communities based on cleaned graph
+        # generate communities based on cleaned graph
         comms = kg.get_louvain_communities()
 
         for c in comms:
@@ -438,36 +438,36 @@ class GraphExtractor:
 
             if comm_report_dict == {}:
                 comm_data = data_model.CommunityData(title=str(c),
-                                    summary="",
-                                    rating=0,
-                                    rating_explanation="",
-                                    findings=[{}],
-                                    community_nodes=c)
+                                                     summary="",
+                                                     rating=0,
+                                                     rating_explanation="",
+                                                     findings=[{}],
+                                                     community_nodes=c)
             else:
                 comm_data = data_model.CommunityData(title=comm_report_dict["title"],
-                                                    summary=comm_report_dict["summary"],
-                                                    rating=comm_report_dict["rating"],
-                                                    rating_explanation=comm_report_dict["rating_explanation"],
-                                                    findings=comm_report_dict["findings"],
-                                                    community_nodes=c)
-                
+                                                     summary=comm_report_dict["summary"],
+                                                     rating=comm_report_dict["rating"],
+                                                     rating_explanation=comm_report_dict["rating_explanation"],
+                                                     findings=comm_report_dict["findings"],
+                                                     community_nodes=c)
+
                 kg.store_community(community=comm_data)
 
         return None
 
-    def update_node_embeddings(self) -> None: 
+    def update_node_embeddings(self) -> None:
 
         node_embeddings = self.graph_db.get_node2vec_embeddings()
 
         for node_uid in node_embeddings.nodes:
             # Get the embedding for the current node
             index = node_embeddings.nodes.index(node_uid)
-            embedding = Vector( node_embeddings.embeddings[index].tolist() )
-            
+            embedding = Vector(node_embeddings.embeddings[index].tolist())
+
             try:
                 # Fetch the existing node data
                 node_data = self.graph_db.get_node(node_uid)
-                
+
                 # Update the embedding
                 node_data.embedding = embedding
 
@@ -475,15 +475,110 @@ class GraphExtractor:
                 self.graph_db.update_node(node_uid, node_data)
 
             except KeyError:
-                # Handle the case where the node doesn't exist 
+                # Handle the case where the node doesn't exist
                 print(f"Warning: Node '{node_uid}' not found in Firestore. Skipping embedding update.")
 
         return None
 
-    @abstractmethod
-    def async_generate_comm_reports(self, kg: NoSQLKnowledgeGraph) -> None:
+    @observe()
+    def async_generate_comm_report(self, c) -> data_model.CommunityData:
         """Method for async generation of community reports for e2e latency optimization."""
-        pass
+
+        langfuse_context.update_current_trace(
+            name=f"Async Comm Generation",
+            public=False
+        )
+
+        llm = LLMSession(system_message=prompts.COMMUNITY_REPORT_SYSTEM,
+                         model_name="gemini-1.5-flash-001")
+
+        comm_nodes = []
+        comm_edges = []
+        for n in c:
+            node = self.graph_db.get_node(n)
+            node_edges_to = [{"edge_source_entity": self.graph_db.get_edge(source_uid=node.node_uid,
+                                                                target_uid=e),
+                              "edge_target_entity": self.graph_db.get_edge(source_uid=node.node_uid,
+                                                                target_uid=e),
+                              "edge_description": self.graph_db.get_edge(source_uid=node.node_uid,
+                                                              target_uid=e)} for e in node.edges_to]
+
+            node_edges_from = [{"edge_source_entity": self.graph_db.get_edge(source_uid=e,
+                                                                  target_uid=node.node_uid),
+                               "edge_target_entity": self.graph_db.get_edge(source_uid=e,
+                                                                 target_uid=node.node_uid),
+                                "edge_description": self.graph_db.get_edge(source_uid=e,
+                                                                target_uid=node.node_uid)} for e in node.edges_from]
+
+            node_data = {"entity_id": node.node_title,
+                         "entity_type": node.node_type,
+                         "entity_description": node.node_description}
+
+            comm_nodes.append(node_data)
+            comm_edges.extend(node_edges_to)
+            comm_edges.extend(node_edges_from)
+
+        response_schema = {
+            "type": "object",
+            "properties": {
+                    "title": {
+                        "type": "string"
+                    },
+                "summary": {
+                        "type": "string"
+                },
+                "rating": {
+                        "type": "int"
+                },
+                "rating_explanation": {
+                        "type": "string"
+                },
+                "findings": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "summary": {
+                                    "type": "string"
+                                },
+                                "explanation": {
+                                    "type": "string"
+                                }
+                            },
+                            # Ensure both fields are present in each finding
+                            "required": ["summary", "explanation"]
+                        }
+                }
+            },
+            # List required fields at the top level
+            "required": ["title", "summary", "rating", "rating_explanation", "findings"]
+        }
+
+        comm_report = llm.generate(client_query_string=prompts.COMMUNITY_REPORT_QUERY.format(
+            entities=comm_nodes,
+            relationships=comm_edges,
+            response_mime_type="application/json",
+            response_schema=response_schema
+        ))
+
+        comm_report_dict = self.llm.parse_json_response(comm_report)
+
+        if comm_report_dict == {}:
+            comm_data = data_model.CommunityData(title=str(c),
+                                                 summary="",
+                                                 rating=0,
+                                                 rating_explanation="",
+                                                 findings=[{}],
+                                                 community_nodes=c)
+        else:
+            comm_data = data_model.CommunityData(title=comm_report_dict["title"],
+                                                 summary=comm_report_dict["summary"],
+                                                 rating=comm_report_dict["rating"],
+                                                 rating_explanation=comm_report_dict["rating_explanation"],
+                                                 findings=comm_report_dict["findings"],
+                                                 community_nodes=c)
+
+        return comm_data
 
 
 class GCPGraphExtractor(GraphExtractor):
@@ -495,7 +590,7 @@ class GCPGraphExtractor(GraphExtractor):
     #                         max_attempts: int = 6,
     #                         sleep_time: int = 15) -> list[IntermediateCommRespose]:
     #     """
-    #     Periodically checks for the existence of a document with user_query as id. 
+    #     Periodically checks for the existence of a document with user_query as id.
 
     #     Args:
     #         user_query (str): The ID of the document to look for.
@@ -508,7 +603,7 @@ class GCPGraphExtractor(GraphExtractor):
     #     query_db = firestore.Client(project=self.project_id,  # type: ignore
     #                           credentials=self.gcp_credentials,
     #                           database=str(self.secrets["QUERY_FS_DB_ID"]))
-        
+
     #     comm_list = self.fskg.list_communities()
 
     #     time.sleep(5)
@@ -531,27 +626,28 @@ class GCPGraphExtractor(GraphExtractor):
 
     #     raise TimeoutError(f"Document with ID '{user_query}' not found after {max_attempts} attempts.")
 
-    def async_generate_comm_reports(self, kg: NoSQLKnowledgeGraph) -> None:
+    def comm_async_report(self, kg: NoSQLKnowledgeGraph) -> None:
         """Method for async generation of community reports for e2e latency optimization."""
 
         langfuse_context.update_current_trace(
-                name="Async Community Report Generation",
-                public=False
-            )
+            name="Async Community Report Generation",
+            public=False
+        )
 
         # clean graph off all nodes without any edges
         kg.clean_zerodegree_nodes()
 
-        #generate communities based on cleaned graph
+        # generate communities based on cleaned graph
         comms = kg.get_louvain_communities()
 
         for c in comms:
-            pubsub_mq = PubSubMQ(pubsub_topic_id=str(self.secrets["COMMUNITY_WL_PUBSUB"]))
+            pubsub_mq = PubSubMQ(pubsub_topic_id=str(
+                self.secrets["COMMUNITY_WL_PUBSUB"]))
             pubsub_mq.send_to_mq(message={"community_record": str(c)})
 
         print(f"{len(comms)} Community report requests submitted.")
         return None
-    
+
 
 if __name__ == "__main__":
 
@@ -581,7 +677,7 @@ if __name__ == "__main__":
     #     new_file_name="./pdf_articles/Winners of Future Hamburg Award 2023 announced _ Hamburg News.pdf", ingest_local_file=True
     # )
     # extracted_graph = extractor(text_input=document_string, max_extr_rounds=1)
-    
+
     # document_string = ingestion(
     #     new_file_name="./pdf_articles/Albert-Einstein.pdf", ingest_local_file=True
     # )
@@ -605,7 +701,7 @@ if __name__ == "__main__":
     # fskg.visualize_graph("visualized.png")
 
     # extractor.generate_comm_reports(kg=fskg)
-    gcpextractor.async_generate_comm_reports(kg=fskg)
+    gcpextractor.comm_async_report(kg=fskg)
 
     gcpextractor.update_node_embeddings()
 
