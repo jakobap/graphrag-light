@@ -19,8 +19,8 @@ update-graph2nosql:
 
 # New command to copy and replace the graph2nosql repository
 update-graphrag-light:
-	rm -rf graphrag # Remove the existing directory if it exists
-	cp -r ../graphrag/. graphrag-light # Copy the updated repository
+	rm -rf graphrag-lite # Remove the existing directory if it exists
+	cp -r ../graphrag-lite/. graphrag-light # Copy the updated repository
 
 build:
 	gcloud builds submit . \
