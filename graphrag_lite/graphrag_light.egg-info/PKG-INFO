@@ -1,0 +1,14 @@
+Metadata-Version: 2.1
+Name: graphrag_light
+Version: 0.1
+Requires-Dist: google-cloud-aiplatform==1.59.0
+Requires-Dist: google-cloud-documentai==2.29.2
+Requires-Dist: google-auth==2.32.0
+Requires-Dist: google-api-python-client==2.129.0
+Requires-Dist: python-dotenv==1.0.1
+Requires-Dist: networkx==3.3
+Requires-Dist: matplotlib==3.9.1
+Requires-Dist: langfuse==2.39.2
+Requires-Dist: graspologic==3.4.1
+Requires-Dist: google-cloud-pubsub==2.19.6
+Requires-Dist: PyPDF2==3.0.1

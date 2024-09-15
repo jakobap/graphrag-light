@@ -7,8 +7,8 @@ try:
     from nosql_kg import data_model
 
 except:
-    from graphrag.LLMSession import LLMSession
-    import graphrag.prompts as prompts
+    from graphrag_lite.LLMSession import LLMSession
+    import graphrag_lite.prompts as prompts
 
     from graph2nosql.graph2nosql.graph2nosql import NoSQLKnowledgeGraph
     from graph2nosql.databases.firestore_kg import FirestoreKG

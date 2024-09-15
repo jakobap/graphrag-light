@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 
 setup(
-    name='graphrag-light',  # Choose a name for your library
+    name='graphrag_light',  # Choose a name for your library
     version='0.1', 
     packages=find_packages(),
     install_requires=[
