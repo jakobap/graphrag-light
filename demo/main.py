@@ -135,7 +135,8 @@ def extract_filename_from_url(text):
 def get_current_files(bucket_name, secrets=secrets, credentials=credentials) -> list:
     bucket = storage.Client(project=secrets['GCP_PROJECT_ID'], credentials=credentials).bucket(bucket_name)
     print(list(bucket.list_blobs()))
-    files_with_links = [(extract_filename_from_url(blob.name), blob.generate_signed_url(expiration=datetime.timedelta(minutes=10))) for blob in bucket.list_blobs() if ".pdf" in str(blob.name)]    
+    files_with_links = [(extract_filename_from_url(blob.name), blob.generate_signed_url(expiration=datetime.timedelta(minutes=10))) for blob in bucket.list_blobs() if ".pdf" in str(blob.name)] 
+       
     return files_with_links
 
 
@@ -172,6 +173,7 @@ st.dataframe(df)
 DocPreview(list_of_docs=current_files).render()
 
 st.header('Knowledge Graph Overview')
+fskg.visualize_graph(filename="visualize_kg.png")
 st.image("./visualize_kg.png")
 
 st.markdown('**Upload a new PDF file for your knowledge base.**')
