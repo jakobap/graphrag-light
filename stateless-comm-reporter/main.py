@@ -5,25 +5,16 @@ import traceback
 import os
 import ast
 
-# from LLMSession import LLMSession
-import prompts
-
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from langfuse.decorators import observe, langfuse_context
 from dotenv import dotenv_values
 
-import firebase_admin
-from firebase_admin import firestore
-
-import google.auth
 
 from graph2nosql.graph2nosql.graph2nosql import NoSQLKnowledgeGraph
 from graph2nosql.databases import firestore_kg
-from graph2nosql.datamodel import data_model
 
-from graphrag_lite.LLMSession import LLMSession
 from graphrag_lite.GraphExtractor import GraphExtractor
 
 app = FastAPI()
