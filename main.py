@@ -22,12 +22,11 @@ import pandas as pd
 from google.cloud import storage
 import google.auth
 
-from nosql_kg.firestore_kg import FirestoreKG
+from graph2nosql.databases.firestore_kg import FirestoreKG
 
-from graphrag.KGraphQuery import GlobalQueryGCP
-from graphrag.IngestionSession import IngestionSession
-from graphrag.PreprocessingSession import PreprocessingSession
-# from rsc.DeletionSession import DeletionSession
+from graphrag_lite.KGraphQuery import GlobalQueryGCP
+from graphrag_lite.IngestionSession import IngestionSession
+from graphrag_lite.PreprocessingSession import PreprocessingSession
 
 secrets = dotenv_values(".env")
 credentials, _ = google.auth.load_credentials_from_file(secrets['GCP_CREDENTIAL_FILE'])
