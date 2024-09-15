@@ -1,23 +1,8 @@
 
-from graphrag.LLMSession import LLMSession
-import graphrag.prompts as prompts
-from graphrag.GraphExtractor import GCPGraphExtractor, GraphExtractor
+from graphrag_lite.GraphExtractor import GCPGraphExtractor, GraphExtractor
 
-from nosql_kg.graph2nosql import NoSQLKnowledgeGraph
-from nosql_kg.firestore_kg import FirestoreKG
-from nosql_kg import data_model
+from graph2nosql.databases.firestore_kg import FirestoreKG
 
-from cgitb import text
-from html import entities
-from typing import Any
-
-from httpx import get
-import networkx as nx
-from google.cloud.firestore_v1.vector import Vector
-
-from collections.abc import Mapping
-import matplotlib.pyplot as plt
-from langfuse.decorators import observe, langfuse_context
 from dotenv import dotenv_values
 
 if __name__ == "__main__":
@@ -46,6 +31,6 @@ if __name__ == "__main__":
     # extractor.update_node_embeddings()
 
     gcpextractor = GCPGraphExtractor(graph_db=fskg)
-    gcpextractor.async_generate_comm_reports(kg=fskg)
+    gcpextractor.comm_async_report(kg=fskg)
 
     print("Hello World!")
