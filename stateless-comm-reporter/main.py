@@ -3,6 +3,7 @@ import json
 import logging
 import traceback
 import os
+import ast
 
 from LLMSession import LLMSession
 import prompts
@@ -29,9 +30,11 @@ app = FastAPI()
 @observe()
 def generate_response(c, kg: NoSQLKnowledgeGraph):
 
+    print(f"Unwrapped Community Record: {c}")
+
     try:
         langfuse_context.update_current_trace(
-            name="Community Intermediate Query Gen",
+            name="Async Community Report Generation",
             public=False
         )
         
@@ -40,6 +43,7 @@ def generate_response(c, kg: NoSQLKnowledgeGraph):
 
         comm_nodes = []
         comm_edges = []
+
         for n in c:
             node = kg.get_node(n)
             node_edges_to = [{"edge_source_entity": kg.get_edge(source_uid=node.node_uid,
@@ -127,7 +131,6 @@ def generate_response(c, kg: NoSQLKnowledgeGraph):
                 kg.store_community(community=comm_data)
 
         langfuse_context.flush()
-        return JSONResponse(content={"message": "File analysis completed successfully!"}, status_code=200)
     except Exception as e:
         msg = f"Something went wrong during report generation for community: {c} with error: {e}"
         logging.error(msg)
@@ -201,7 +204,8 @@ async def trigger_analysis(request: Request):
         secrets["LANGFUSE_SECRET_KEY"])
     os.environ["LANGFUSE_PUBLIC_KEY"] = str(
         secrets["LANGFUSE_PUBLIC_KEY"])
-    os.environ["LANGFUSE_HOST"] = "https://cloud.langfuse.com"
+    os.environ["LANGFUSE_HOST"] = str(
+        secrets["LANGFUSE_HOST"])
 
     fskg = firestore_kg.FirestoreKG(
         gcp_project_id=str(secrets["GCP_PROJECT_ID"]),
@@ -215,8 +219,11 @@ async def trigger_analysis(request: Request):
     try:
         payload = await request.body()
         message_dict = json.loads(payload.decode())
-        logging.debug(
-            f"Received envelope at /receive_analysis_request: {message_dict}")
+        print(f"Received envelope at /receive_analysis_request: {message_dict}")
+
+        community_record = ast.literal_eval(message_dict["community_record"])
+        print(community_record)
+
     except Exception as e:
         logging.error(e)
         traceback.print_exc()
@@ -225,13 +232,13 @@ async def trigger_analysis(request: Request):
     print(f"Received Pub/Sub message for Analysis: {message_dict}")
 
     try:
-        response_json = generate_response(
-            c=message_dict["community_record"],
+        generate_response(
+            c=community_record,
             kg=fskg
         )
 
         print("analysis done")
-        return response_json
+        return JSONResponse(content={"message": "File analysis completed successfully!"}, status_code=200)
     except Exception as e:
         msg = f"Something went wrong during file analysis: {e}"
         logging.error(msg)
