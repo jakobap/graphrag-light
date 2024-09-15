@@ -7,3 +7,7 @@
 **/*.json 
 /sample_txt.py
 **/*.png
+
+
+/stateless-comm-reporter/graph2nosql
+/stateless-comm-reporter/graphrag_lite
