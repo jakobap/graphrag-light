@@ -9,5 +9,5 @@
 **/*.png
 
 
-/stateless-comm-reporter/graph2nosql
-/stateless-comm-reporter/graphrag_lite
+/*/graph2nosql
+/*/graphrag_lite
