@@ -12,10 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-try: 
-    import prompts
-except:
-    import graphrag.prompts as prompts
+import graphrag_lite.prompts as prompts
 
 from optparse import Option
 from dotenv import dotenv_values
