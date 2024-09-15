@@ -5,7 +5,7 @@ import traceback
 import os
 import ast
 
-from LLMSession import LLMSession
+# from LLMSession import LLMSession
 import prompts
 
 from fastapi import FastAPI, Request
@@ -23,6 +23,8 @@ from graph2nosql.graph2nosql.graph2nosql import NoSQLKnowledgeGraph
 from graph2nosql.databases import firestore_kg
 from graph2nosql.datamodel import data_model
 
+from graphrag_lite.LLMSession import LLMSession
+from graphrag_lite.GraphExtractor import GraphExtractor
 
 app = FastAPI()
 
@@ -32,102 +34,8 @@ def generate_response(c, kg: NoSQLKnowledgeGraph):
 
     print(f"Unwrapped Community Record: {c}")
 
-    langfuse_context.update_current_trace(
-        name="Async Community Report Generation",
-        public=False
-    )
-
-    llm = LLMSession(system_message=prompts.COMMUNITY_REPORT_SYSTEM,
-                     model_name="gemini-1.5-pro-001")
-
-    comm_nodes = []
-    comm_edges = []
-
-    for n in c:
-        node = kg.get_node(n)
-        node_edges_to = [{"edge_source_entity": kg.get_edge(source_uid=node.node_uid,
-                                                            target_uid=e),
-                          "edge_target_entity": kg.get_edge(source_uid=node.node_uid,
-                                                            target_uid=e),
-                          "edge_description": kg.get_edge(source_uid=node.node_uid,
-                                                          target_uid=e)} for e in node.edges_to]
-
-        node_edges_from = [{"edge_source_entity": kg.get_edge(source_uid=e,
-                                                              target_uid=node.node_uid),
-                            "edge_target_entity": kg.get_edge(source_uid=e,
-                                                              target_uid=node.node_uid),
-                            "edge_description": kg.get_edge(source_uid=e,
-                                                            target_uid=node.node_uid)} for e in node.edges_from]
-
-        node_data = {"entity_id": node.node_title,
-                     "entity_type": node.node_type,
-                     "entity_description": node.node_description}
-
-        comm_nodes.append(node_data)
-        comm_edges.extend(node_edges_to)
-        comm_edges.extend(node_edges_from)
-
-        response_schema = {
-            "type": "object",
-            "properties": {
-                "title": {
-                    "type": "string"
-                },
-                "summary": {
-                    "type": "string"
-                },
-                "rating": {
-                    "type": "int"
-                },
-                "rating_explanation": {
-                    "type": "string"
-                },
-                "findings": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "summary": {
-                                "type": "string"
-                            },
-                            "explanation": {
-                                "type": "string"
-                            }
-                        },
-                        # Ensure both fields are present in each finding
-                        "required": ["summary", "explanation"]
-                    }
-                }
-            },
-            # List required fields at the top level
-            "required": ["title", "summary", "rating", "rating_explanation", "findings"]
-        }
-
-    comm_report = llm.generate(client_query_string=prompts.COMMUNITY_REPORT_QUERY.format(
-        entities=comm_nodes,
-        relationships=comm_edges,
-        response_mime_type="application/json",
-        response_schema=response_schema
-    ))
-
-    comm_report_dict = llm.parse_json_response(comm_report)
-
-    if comm_report_dict == {}:
-        comm_data = data_model.CommunityData(title=str(c),
-                                             summary="",
-                                             rating=0,
-                                             rating_explanation="",
-                                             findings=[{}],
-                                             community_nodes=c)
-    else:
-        comm_data = data_model.CommunityData(title=comm_report_dict["title"],
-                                             summary=comm_report_dict["summary"],
-                                             rating=comm_report_dict["rating"],
-                                             rating_explanation=comm_report_dict["rating_explanation"],
-                                             findings=comm_report_dict["findings"],
-                                             community_nodes=c)
-
-    langfuse_context.flush()
+    extractor = GraphExtractor(graph_db=kg)
+    comm_data = extractor.async_generate_comm_report(c=c)
     return comm_data
 
 
@@ -182,6 +90,7 @@ async def trigger_analysis(request: Request):
         fskg.store_community(community=comm_report)
 
         print("comm report done")
+        langfuse_context.flush()
         return JSONResponse(content={"message": "File analysis completed successfully!"}, status_code=200)
     except Exception as e:
         msg = f"Something went wrong during comm reporting: {e}"

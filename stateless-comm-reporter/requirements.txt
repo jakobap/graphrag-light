@@ -10,4 +10,6 @@ firebase-admin==6.5.0
 networkx==3.3
 
 -e graph2nosql  
+-e graphrag_lite
+
 
