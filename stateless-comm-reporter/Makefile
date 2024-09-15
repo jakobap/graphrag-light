@@ -18,9 +18,9 @@ update-graph2nosql:
 	cp -r ../graph2nosql/. graph2nosql # Copy the updated repository
 
 # New command to copy and replace the graph2nosql repository
-update-graphrag-light:
-	rm -rf graphrag-lite # Remove the existing directory if it exists
-	cp -r ../graphrag-lite/. graphrag-light # Copy the updated repository
+update-graphrag-lite:
+	rm -rf graphrag_lite # Remove the existing directory if it exists
+	cp -r ../graphrag_lite/. graphrag_lite # Copy the updated repository
 
 build:
 	gcloud builds submit . \
@@ -35,4 +35,4 @@ deploy:
 traffic:
 	gcloud run services update-traffic stateless-comm-reporter-service --to-latest
 
-all: config init update-graph2nosql update-graphrag-light build deploy traffic
+all: config init update-graph2nosql update-graphrag-lite build deploy traffic
