@@ -55,7 +55,7 @@ class IngestionSession:
     def __call__(self, new_file_name: str,
                  file_to_ingest=None,
                  ingest_local_file: bool = False,
-                 data_to_ingest=None) -> str:
+                 async_comm_reports=True) -> str:
 
         print("+++++ Upload raw PDF... +++++")
         self._store_raw_upload(
@@ -72,9 +72,14 @@ class IngestionSession:
         
         print("+++++ Extracting Graph Data +++++")
         extractor = GCPGraphExtractor(graph_db=self.graph_db)
-        extracted_graph = extractor(text_input=document_string, max_extr_rounds=1)
-        # extractor.generate_comm_reports(kg=self.graph_db)
-        extractor.comm_async_report(kg=self.graph_db)
+        extractor(text_input=document_string, max_extr_rounds=1) # extracts and saves nodes and edges
+
+        # Trigger community report generation as asyncronous or periodical operation
+        if async_comm_reports == True:
+            extractor.comm_async_report(kg=self.graph_db)
+        elif async_comm_reports == False: 
+            extractor.generate_comm_reports(kg=self.graph_db)
+    
         extractor.update_node_embeddings()
         self.graph_db.visualize_graph(filename="./visualize_kg.png")
 
