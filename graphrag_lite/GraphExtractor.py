@@ -6,22 +6,16 @@ from graph2nosql.graph2nosql.graph2nosql import NoSQLKnowledgeGraph
 from graph2nosql.databases.firestore_kg import FirestoreKG
 from graph2nosql.datamodel import data_model
 
-from abc import abstractmethod
 from .async_utils.mq import PubSubMQ
 
-from cgitb import text
-from html import entities
 from typing import Any
-import time
 
-from httpx import get
 import networkx as nx
 from google.cloud.firestore_v1.vector import Vector
 
 import re
 import numbers
 import html
-import datetime
 from collections.abc import Mapping
 import matplotlib.pyplot as plt
 from langfuse.decorators import observe, langfuse_context
@@ -347,17 +341,17 @@ class GraphExtractor:
         result = result.replace('"', '')
         return result
 
-    @observe()
     def generate_comm_reports(self, kg: NoSQLKnowledgeGraph) -> None:
+        """Generates and stores community reports for all communities in the knowledge graph.
 
-        langfuse_context.update_current_trace(
-            name="Community Report Generation",
-            public=False
-        )
+        This method first cleans the knowledge graph by removing nodes without edges. 
+        Then, it identifies communities within the graph and generates a report for each community 
+        using the `async_generate_comm_report` method. Finally, it stores the generated reports 
+        in the knowledge graph.
 
-        llm = LLMSession(system_message=prompts.COMMUNITY_REPORT_SYSTEM,
-                         model_name="gemini-1.5-pro-001")
-
+        Args:
+            kg: The NoSQLKnowledgeGraph object representing the knowledge graph.
+        """
         # clean graph off all nodes without any edges
         kg.clean_zerodegree_nodes()
 
@@ -365,94 +359,9 @@ class GraphExtractor:
         comms = kg.get_louvain_communities()
 
         for c in comms:
-            comm_nodes = []
-            comm_edges = []
-            for n in c:
-                node = kg.get_node(n)
-                node_edges_to = [{"edge_source_entity": kg.get_edge(source_uid=node.node_uid,
-                                                                    target_uid=e),
-                                  "edge_target_entity": kg.get_edge(source_uid=node.node_uid,
-                                                                    target_uid=e),
-                                  "edge_description": kg.get_edge(source_uid=node.node_uid,
-                                                                  target_uid=e)} for e in node.edges_to]
-
-                node_edges_from = [{"edge_source_entity": kg.get_edge(source_uid=e,
-                                                                      target_uid=node.node_uid),
-                                   "edge_target_entity": kg.get_edge(source_uid=e,
-                                                                     target_uid=node.node_uid),
-                                    "edge_description": kg.get_edge(source_uid=e,
-                                                                    target_uid=node.node_uid)} for e in node.edges_from]
-
-                node_data = {"entity_id": node.node_title,
-                             "entity_type": node.node_type,
-                             "entity_description": node.node_description}
-
-                comm_nodes.append(node_data)
-                comm_edges.extend(node_edges_to)
-                comm_edges.extend(node_edges_from)
-
-            response_schema = {
-                "type": "object",
-                "properties": {
-                    "title": {
-                        "type": "string"
-                    },
-                    "summary": {
-                        "type": "string"
-                    },
-                    "rating": {
-                        "type": "int"
-                    },
-                    "rating_explanation": {
-                        "type": "string"
-                    },
-                    "findings": {
-                        "type": "array",
-                        "items": {
-                            "type": "object",
-                            "properties": {
-                                "summary": {
-                                    "type": "string"
-                                },
-                                "explanation": {
-                                    "type": "string"
-                                }
-                            },
-                            # Ensure both fields are present in each finding
-                            "required": ["summary", "explanation"]
-                        }
-                    }
-                },
-                # List required fields at the top level
-                "required": ["title", "summary", "rating", "rating_explanation", "findings"]
-            }
-
-            comm_report = llm.generate(client_query_string=prompts.COMMUNITY_REPORT_QUERY.format(
-                entities=comm_nodes,
-                relationships=comm_edges,
-                response_mime_type="application/json",
-                response_schema=response_schema
-            ))
-
-            comm_report_dict = self.llm.parse_json_response(comm_report)
-
-            if comm_report_dict == {}:
-                comm_data = data_model.CommunityData(title=str(c),
-                                                     summary="",
-                                                     rating=0,
-                                                     rating_explanation="",
-                                                     findings=[{}],
-                                                     community_nodes=c)
-            else:
-                comm_data = data_model.CommunityData(title=comm_report_dict["title"],
-                                                     summary=comm_report_dict["summary"],
-                                                     rating=comm_report_dict["rating"],
-                                                     rating_explanation=comm_report_dict["rating_explanation"],
-                                                     findings=comm_report_dict["findings"],
-                                                     community_nodes=c)
-
-                kg.store_community(community=comm_data)
-
+            comm_data = self.async_generate_comm_report(comm_members=c)
+            kg.store_community(community=comm_data)
+            print(comm_data)
         return None
 
     def update_node_embeddings(self) -> None:
@@ -476,16 +385,26 @@ class GraphExtractor:
 
             except KeyError:
                 # Handle the case where the node doesn't exist
-                print(f"Warning: Node '{node_uid}' not found in Firestore. Skipping embedding update.")
+                print(f"Warning: Node '{
+                      node_uid}' not found in Firestore. Skipping embedding update.")
 
         return None
 
     @observe()
-    def async_generate_comm_report(self, c) -> data_model.CommunityData:
-        """Method for async generation of community reports for e2e latency optimization."""
+    def async_generate_comm_report(self, comm_members: set[str]) -> data_model.CommunityData:
+        """Asynchronously generates a community report for a given community.
+
+        This method is designed for optimizing end-to-end latency by generating community reports asynchronously.
+
+        Args:
+            c: A set of node UIDs representing the community.
+
+        Returns:
+            A CommunityData object containing the generated report information.
+        """
 
         langfuse_context.update_current_trace(
-            name=f"Async Comm Generation",
+            name=f"Community Report Generation",
             public=False
         )
 
@@ -494,21 +413,21 @@ class GraphExtractor:
 
         comm_nodes = []
         comm_edges = []
-        for n in c:
+        for n in comm_members:
             node = self.graph_db.get_node(n)
             node_edges_to = [{"edge_source_entity": self.graph_db.get_edge(source_uid=node.node_uid,
-                                                                target_uid=e),
+                                                                           target_uid=e),
                               "edge_target_entity": self.graph_db.get_edge(source_uid=node.node_uid,
-                                                                target_uid=e),
+                                                                           target_uid=e),
                               "edge_description": self.graph_db.get_edge(source_uid=node.node_uid,
-                                                              target_uid=e)} for e in node.edges_to]
+                                                                         target_uid=e)} for e in node.edges_to]
 
             node_edges_from = [{"edge_source_entity": self.graph_db.get_edge(source_uid=e,
-                                                                  target_uid=node.node_uid),
+                                                                             target_uid=node.node_uid),
                                "edge_target_entity": self.graph_db.get_edge(source_uid=e,
-                                                                 target_uid=node.node_uid),
+                                                                            target_uid=node.node_uid),
                                 "edge_description": self.graph_db.get_edge(source_uid=e,
-                                                                target_uid=node.node_uid)} for e in node.edges_from]
+                                                                           target_uid=node.node_uid)} for e in node.edges_from]
 
             node_data = {"entity_id": node.node_title,
                          "entity_type": node.node_type,
@@ -526,13 +445,13 @@ class GraphExtractor:
                     },
                 "summary": {
                         "type": "string"
-                },
+                        },
                 "rating": {
                         "type": "int"
-                },
+                        },
                 "rating_explanation": {
                         "type": "string"
-                },
+                        },
                 "findings": {
                         "type": "array",
                         "items": {
@@ -548,7 +467,7 @@ class GraphExtractor:
                             # Ensure both fields are present in each finding
                             "required": ["summary", "explanation"]
                         }
-                }
+                        }
             },
             # List required fields at the top level
             "required": ["title", "summary", "rating", "rating_explanation", "findings"]
@@ -564,19 +483,19 @@ class GraphExtractor:
         comm_report_dict = self.llm.parse_json_response(comm_report)
 
         if comm_report_dict == {}:
-            comm_data = data_model.CommunityData(title=str(c),
+            comm_data = data_model.CommunityData(title=str(comm_members),
                                                  summary="",
                                                  rating=0,
                                                  rating_explanation="",
                                                  findings=[{}],
-                                                 community_nodes=c)
+                                                 community_nodes=comm_members)
         else:
             comm_data = data_model.CommunityData(title=comm_report_dict["title"],
                                                  summary=comm_report_dict["summary"],
                                                  rating=comm_report_dict["rating"],
                                                  rating_explanation=comm_report_dict["rating_explanation"],
                                                  findings=comm_report_dict["findings"],
-                                                 community_nodes=c)
+                                                 community_nodes=comm_members)
 
         return comm_data
 
@@ -586,48 +505,16 @@ class GCPGraphExtractor(GraphExtractor):
         super().__init__(graph_db)
         self.secrets = dotenv_values(".env")
 
-    # def _check_shared_state(self, user_query: str,
-    #                         max_attempts: int = 6,
-    #                         sleep_time: int = 15) -> list[IntermediateCommRespose]:
-    #     """
-    #     Periodically checks for the existence of a document with user_query as id.
-
-    #     Args:
-    #         user_query (str): The ID of the document to look for.
-    #         max_attempts (int, optional): Maximum number of attempts to check. Defaults to 10.
-    #         sleep_time (int, optional): Time to sleep between attempts in seconds. Defaults to 2.
-
-    #     Returns:
-    #         Dict: The document data if found, otherwise raises timeout error.
-    #     """
-    #     query_db = firestore.Client(project=self.project_id,  # type: ignore
-    #                           credentials=self.gcp_credentials,
-    #                           database=str(self.secrets["QUERY_FS_DB_ID"]))
-
-    #     comm_list = self.fskg.list_communities()
-
-    #     time.sleep(5)
-    #     for attempt in range(max_attempts):
-    #         doc_ref = query_db.collection(
-    #             str(self.secrets["QUERY_FS_INT__RESPONSE_COLL"])).document(user_query)
-    #         doc_snapshot = doc_ref.get()
-    #         if doc_snapshot.exists:
-    #             num_stored_responses = len(doc_snapshot.to_dict().keys())
-    #             if num_stored_responses >= len(comm_list) * 0.9:
-    #                 responses = doc_snapshot.to_dict()
-    #                 comms = responses.keys()
-    #                 return [IntermediateCommRespose.from_dict(responses[c]) for c in comms]
-    #             else:
-    #                 print(f"Attempt {attempt+1}/{max_attempts}: Document not found, sleeping for {sleep_time} seconds...")
-    #                 time.sleep(sleep_time)
-    #         else:
-    #             print(f"Attempt {attempt+1}/{max_attempts}: Document not found, sleeping for {sleep_time} seconds...")
-    #             time.sleep(sleep_time)
-
-    #     raise TimeoutError(f"Document with ID '{user_query}' not found after {max_attempts} attempts.")
-
     def comm_async_report(self, kg: NoSQLKnowledgeGraph) -> None:
-        """Method for async generation of community reports for e2e latency optimization."""
+        """Generates community reports asynchronously for improved end-to-end latency.
+
+        This method leverages a Pub/Sub message queue to distribute the workload of community report generation. 
+        It first identifies communities within the provided knowledge graph and then dispatches each community 
+        as a message to the queue for asynchronous processing.
+
+        Args:
+            kg: The NoSQLKnowledgeGraph object representing the knowledge graph.
+        """
 
         langfuse_context.update_current_trace(
             name="Async Community Report Generation",
@@ -673,52 +560,9 @@ if __name__ == "__main__":
     # extractor = GraphExtractor(graph_db=fskg)
     gcpextractor = GCPGraphExtractor(graph_db=fskg)
 
-    # document_string = ingestion(
-    #     new_file_name="./pdf_articles/Winners of Future Hamburg Award 2023 announced _ Hamburg News.pdf", ingest_local_file=True
-    # )
-    # extracted_graph = extractor(text_input=document_string, max_extr_rounds=1)
-
-    # document_string = ingestion(
-    #     new_file_name="./pdf_articles/Albert-Einstein.pdf", ingest_local_file=True
-    # )
-    # extracted_graph = extractor(text_input=document_string, max_extr_rounds=1)
-
-    # document_string = ingestion(
-    #     new_file_name="./pdf_articles/mahatma-gandhi.pdf", ingest_local_file=True
-    # )
-    # extracted_graph = extractor(text_input=document_string, max_extr_rounds=1)
-
-    # document_string = ingestion(
-    #     new_file_name="./pdf_articles/Narges-Mohammadi.pdf", ingest_local_file=True
-    # )
-    # extracted_graph = extractor(text_input=document_string, max_extr_rounds=1)
-
-    # document_string = ingestion(
-    #     new_file_name="./pdf_articles/2024 United States presidential election - Wikipedia.pdf", ingest_local_file=True
-    # )
-    # extracted_graph = extractor(text_input=document_string, max_extr_rounds=1)
-
-    # fskg.visualize_graph("visualized.png")
-
-    # extractor.generate_comm_reports(kg=fskg)
-    gcpextractor.comm_async_report(kg=fskg)
+    gcpextractor.generate_comm_reports(kg=fskg)
+    # gcpextractor.comm_async_report(kg=fskg)
 
     gcpextractor.update_node_embeddings()
-
-    # node_embeddings = fskg.get_node2vec_embeddings()
-
-    # llm = LLMSession(
-    #     system_message="",
-    #     model_name="gemini-1.5-pro-001"
-    # )
-
-    # emb = llm.embed_text(text='who was the nobel peace prize winner 2023', dimensionality=768)
-
-    # narges_index = node_embeddings.nodes.index('NARGES MOHAMMADI')
-
-    # nn = fskg.get_nearest_neighbors(emb[0].values)
-
-    # for i in range(4):
-    #     print(nn[i]["node_uid"])
 
     print("Hello World!")
