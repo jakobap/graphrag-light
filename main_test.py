@@ -27,10 +27,10 @@ if __name__ == "__main__":
 
     # ingestion = IngestionSession()
     # extractor = GraphExtractor(graph_db=fskg)
-    # extractor.generate_comm_reports(kg=fskg)
     # extractor.update_node_embeddings()
 
     gcpextractor = GCPGraphExtractor(graph_db=fskg)
-    gcpextractor.comm_async_report(kg=fskg)
+    gcpextractor.generate_comm_reports(kg=fskg)
+    # gcpextractor.comm_async_report(kg=fskg)
 
     print("Hello World!")
