@@ -10,4 +10,5 @@ graspologic==3.4.1
 google-cloud-pubsub==2.19.6
 PyPDF2==3.0.1
 
--e graph2nosql 
+-e ../graph2nosql 
+-e ../graphrag_lite
