@@ -2,7 +2,7 @@
 
 Welcome to graphrag-light. An easy to start, GCP native, graphrag implementation. 
 
-![Graph Retrieval Augmented Generation (Graph RAG) Architecture](./graphrag-gcp.png)
+![Graph Retrieval Augmented Generation (Graph RAG) Architecture](./graphrag-gcp.jpg)
 
 
 ## Installation Steps
