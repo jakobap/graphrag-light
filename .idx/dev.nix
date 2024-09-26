@@ -18,7 +18,6 @@
       "ms-python.autopep8"
       "ms-python.debugpy"
       "ms-python.pythonv2024.12.3"
-      "googlecloudtools.cloudcode"
     ];
     # Enable previews
     previews = {
